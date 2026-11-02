@@ -2,8 +2,34 @@ import { Game } from '../src/core/game';
 import { GENERATORS } from '../src/data/generators';
 import { SKILLS, skillCost, skillUnlocked } from '../src/data/skills';
 
-/** A scripted "reasonable player": clicks a few times a second, buys the best-value machine, all upgrades, catches half the comets. */
-export function simulate(opts: { seconds: number; clicksPerSec: number; rebirthAt: (g: Game) => boolean; log?: boolean }) {
+/** Small deterministic PRNG (mulberry32) so simulations are reproducible. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * A scripted "reasonable player": clicks a few times a second, buys the best-value machine,
+ * all upgrades, catches half the comets. The game uses Math.random for crits, comets and
+ * events, so it is swapped for a seeded generator for the duration of the run.
+ */
+export function simulate(opts: { seconds: number; clicksPerSec: number; rebirthAt: (g: Game) => boolean; log?: boolean; seed?: number }) {
+  const realRandom = Math.random;
+  Math.random = mulberry32(opts.seed ?? 1);
+  try {
+    return run(opts);
+  } finally {
+    Math.random = realRandom;
+  }
+}
+
+function run(opts: { seconds: number; clicksPerSec: number; rebirthAt: (g: Game) => boolean; log?: boolean }) {
   const g = new Game();
   g.on('comet', () => {
     if (Math.random() < 0.5) g.catchComet();
