@@ -1,0 +1,10 @@
+{
+  "name": "Astral Forge",
+  "short_name": "Astral Forge",
+  "description": "Click the star. Forge a universe.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#070818",
+  "theme_color": "#070818",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

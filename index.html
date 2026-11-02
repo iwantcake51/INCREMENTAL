@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en" data-palette="brass">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#070a14" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Astral Forge — click the star, build an observatory full of machines, go supernova and chart a constellation of upgrades." />
+    <title>Astral Forge</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+  </head>
+  <body>
+    <canvas id="sky" aria-hidden="true"></canvas>
+
+    <div class="app" id="app">
+      <header class="topbar">
+        <button class="brand" id="brand" type="button" aria-label="Astral Forge">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-name">Astral <em>Forge</em></span>
+        </button>
+        <div class="topbar-res">
+          <div class="chip chip-shards" id="chip-shards" hidden>
+            <span class="chip-ic" data-icon="crystal-cluster"></span>
+            <span class="chip-val" id="shards-top">0</span>
+            <span class="chip-label">shards</span>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-btn" id="btn-mute" type="button" aria-label="Mute sound" data-tip="Sound (M)"><span data-icon="speaker"></span></button>
+          <button class="icon-btn" id="btn-help" type="button" aria-label="How to play" data-tip="How to play"><span data-icon="open-book"></span></button>
+          <button class="icon-btn" id="btn-settings" type="button" aria-label="Settings" data-tip="Settings"><span data-icon="settings-knobs"></span></button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="stage" id="stage" aria-label="Observatory">
+          <div class="banners" id="banners">
+          <div class="trial-banner" id="trial-banner" hidden>
+            <span class="trial-banner-ic" id="trial-banner-ic"></span>
+            <div class="trial-banner-body">
+              <div class="trial-banner-title" id="trial-banner-title"></div>
+              <div class="bar"><div class="bar-fill" id="trial-banner-bar"></div></div>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="trial-abandon" type="button">Abandon</button>
+          </div>
+          </div>
+
+          <div class="counter">
+            <div class="counter-value" id="stardust" aria-live="off">0</div>
+            <div class="counter-label">stardust</div>
+            <div class="counter-rate"><span id="cps">0</span> per second</div>
+          </div>
+
+          <div class="star-wrap">
+            <button class="star" id="star" type="button" aria-label="Click the star to gather stardust">
+              <svg class="star-svg" viewBox="-200 -200 400 400" aria-hidden="true">
+                <defs>
+                  <radialGradient id="g-halo">
+                    <stop offset="0" stop-color="var(--star-glow)" stop-opacity=".55" />
+                    <stop offset=".45" stop-color="var(--star-glow)" stop-opacity=".12" />
+                    <stop offset="1" stop-color="var(--star-glow)" stop-opacity="0" />
+                  </radialGradient>
+                  <radialGradient id="g-core" cx="42%" cy="38%" r="70%">
+                    <stop offset="0" stop-color="#fffaf0" />
+                    <stop offset=".35" stop-color="var(--star-hot)" />
+                    <stop offset=".8" stop-color="var(--star-mid)" />
+                    <stop offset="1" stop-color="var(--star-edge)" />
+                  </radialGradient>
+                  <radialGradient id="g-ray" cx="50%" cy="50%" r="50%">
+                    <stop offset="0" stop-color="#fff6dc" stop-opacity=".9" />
+                    <stop offset="1" stop-color="#fff6dc" stop-opacity="0" />
+                  </radialGradient>
+                  <filter id="f-grain" x="-10%" y="-10%" width="120%" height="120%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n" />
+                    <feColorMatrix in="n" type="saturate" values="0" result="g" />
+                    <feComposite in="g" in2="SourceGraphic" operator="in" result="m" />
+                    <feBlend in="SourceGraphic" in2="m" mode="soft-light" />
+                  </filter>
+                </defs>
+                <circle class="star-halo" r="200" fill="url(#g-halo)" />
+                <g class="star-rays star-rays-a" id="rays-a"></g>
+                <g class="star-rays star-rays-b" id="rays-b"></g>
+                <g class="astrolabe" id="astrolabe">
+                  <circle r="128" class="astro-ring" />
+                  <circle r="120" class="astro-ring astro-ring-thin" />
+                  <g id="astro-ticks"></g>
+                </g>
+                <circle r="124" class="combo-track" />
+                <circle r="124" class="combo-arc" id="combo-arc" pathLength="1000" transform="rotate(-90)" />
+                <g class="star-body" id="star-body">
+                  <circle r="86" fill="url(#g-core)" filter="url(#f-grain)" />
+                  <circle r="86" class="star-rim" />
+                </g>
+              </svg>
+            </button>
+            <div class="combo" id="combo" aria-live="off">
+              <span class="combo-x" id="combo-x">×1.00</span>
+              <span class="combo-label">combo</span>
+            </div>
+          </div>
+
+          <div class="click-hint" id="click-hint">+<span id="click-value">1</span> per click</div>
+          <ul class="buffs" id="buffs" aria-label="Active comet buffs"></ul>
+          <div class="comet-layer" id="comet-layer"></div>
+        </section>
+
+        <section class="panel" aria-label="Control desk">
+          <nav class="tabs" role="tablist" id="tabs" aria-label="Sections"></nav>
+          <div class="tab-views" id="views"></div>
+        </section>
+      </main>
+
+      <footer class="ticker" id="ticker" aria-label="News">
+        <span class="ticker-tag">Dispatch</span>
+        <div class="ticker-track"><span class="ticker-text" id="ticker-text"></span></div>
+      </footer>
+    </div>
+
+    <canvas id="fx" aria-hidden="true"></canvas>
+    <div class="flash" id="flash" aria-hidden="true"></div>
+    <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+    <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
