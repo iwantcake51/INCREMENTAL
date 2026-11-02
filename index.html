@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#04141a" />
     <meta name="color-scheme" content="dark" />
-    <meta name="description" content="Lanterndeep: tap a glowing lure at the bottom of the sea, build a fleet of strange harvesters, and keep descending." />
+    <meta name="description" content="Lanterndeep: pilot a little submarine into the glowing dark, grab plankton, dodge what lives down there, and upgrade your way deeper." />
     <title>Lanterndeep</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
@@ -22,7 +22,7 @@
           </svg>
           <span class="brand-name">Lanterndeep</span>
         </button>
-        <div class="depth-tag" id="depth-tag" hidden>Depth <b id="depth-num">1</b></div>
+        <div class="depth-tag" id="depth-tag" hidden>Record <b id="depth-num">0 m</b></div>
         <div class="topbar-res">
           <span class="save-note" id="save-note" aria-live="polite"></span>
           <div class="chip chip-shards" id="chip-shards" hidden data-tip="Black Pearls you can spend on the Reef">
@@ -40,79 +40,37 @@
       </header>
 
       <main class="layout">
-        <section class="stage" id="stage" aria-label="The lure">
-          <div class="banners" id="banners">
-            <div class="trial-banner" id="trial-banner" hidden>
-              <span class="trial-banner-ic" id="trial-banner-ic"></span>
-              <div class="trial-banner-body">
-                <div class="trial-banner-title" id="trial-banner-title"></div>
-                <div class="bar"><div class="bar-fill" id="trial-banner-bar"></div></div>
-              </div>
-              <button class="btn btn-ghost btn-sm" id="trial-abandon" type="button">Surface</button>
-            </div>
-          </div>
-
+        <section class="stage dock" id="stage" aria-label="The dock">
           <div class="counter">
-            <div class="counter-value" id="stardust" aria-live="off">0</div>
+            <div class="counter-value" id="lumen" aria-live="off">0</div>
             <div class="counter-label">lumen</div>
-            <div class="counter-rate"><span id="cps">0</span> a second<span class="rate-taps" id="rate-taps" hidden></span></div>
+            <div class="counter-rate" id="farm-rate" hidden></div>
           </div>
 
-          <div class="star-wrap">
-            <button class="star" id="star" type="button" aria-label="Tap the lure to gather lumen">
-              <svg class="star-svg" id="lure-svg" viewBox="-200 -200 400 400" aria-hidden="true">
-                <defs>
-                  <radialGradient id="g-halo">
-                    <stop offset="0" stop-color="var(--lure-glow)" stop-opacity=".5" />
-                    <stop offset=".4" stop-color="var(--lure-glow)" stop-opacity=".12" />
-                    <stop offset="1" stop-color="var(--lure-glow)" stop-opacity="0" />
-                  </radialGradient>
-                  <radialGradient id="g-core" cx="40%" cy="36%" r="72%">
-                    <stop offset="0" stop-color="#fbfff9" />
-                    <stop offset=".3" stop-color="var(--lure-hot)" />
-                    <stop offset=".75" stop-color="var(--lure-mid)" />
-                    <stop offset="1" stop-color="var(--lure-edge)" />
-                  </radialGradient>
-                  <linearGradient id="g-stalk" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0" stop-color="#1d3f45" />
-                    <stop offset=".5" stop-color="#2f5a5f" />
-                    <stop offset="1" stop-color="#132a2f" />
-                  </linearGradient>
-                  <filter id="f-grain" x="-10%" y="-10%" width="120%" height="120%">
-                    <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="11" result="n" />
-                    <feColorMatrix in="n" type="saturate" values="0" result="g" />
-                    <feComposite in="g" in2="SourceGraphic" operator="in" result="m" />
-                    <feBlend in="SourceGraphic" in2="m" mode="soft-light" />
-                  </filter>
-                </defs>
-                <g id="lure-sway">
-                  <animateTransform attributeName="transform" type="rotate" values="-2.5 -300 -470; 2.5 -300 -470; -2.5 -300 -470" keyTimes="0;0.5;1" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" dur="9s" repeatCount="indefinite" />
-                  <path class="stalk" d="M -300 -470 C -230 -300, -40 -300, 0 -96" />
-                  <path class="stalk-hi" d="M -300 -470 C -230 -300, -40 -300, 0 -96" />
-                  <circle class="star-halo" r="200" fill="url(#g-halo)" />
-                  <g class="star-rays star-rays-a" id="rays-a"></g>
-                  <g class="star-rays star-rays-b" id="rays-b"></g>
-                  <circle r="134" class="flare-track" />
-                  <circle r="134" class="flare-arc" id="flare-arc" pathLength="1000" transform="rotate(-90)" />
-                  <circle r="116" class="combo-track" />
-                  <circle r="116" class="combo-arc" id="combo-arc" pathLength="1000" transform="rotate(-90)" />
-                  <g class="star-body" id="star-body">
-                    <circle r="86" fill="url(#g-core)" filter="url(#f-grain)" />
-                    <ellipse class="lure-shine" cx="-30" cy="-38" rx="24" ry="14" transform="rotate(-30 -30 -38)" />
-                    <circle r="86" class="star-rim" />
-                  </g>
-                </g>
-              </svg>
-            </button>
-            <div class="combo" id="combo" aria-live="off">
-              <span class="combo-label">streak</span>
-              <span class="combo-x" id="combo-x">×1.00</span>
-            </div>
-          </div>
+          <button class="dock-sub" id="dock-sub" type="button" aria-label="Your submarine">
+            <svg viewBox="-120 -80 240 150" aria-hidden="true">
+              <defs>
+                <radialGradient id="g-beam" cx="0" cy="0.5" r="1">
+                  <stop offset="0" stop-color="#fff2c4" stop-opacity=".55" />
+                  <stop offset="1" stop-color="#fff2c4" stop-opacity="0" />
+                </radialGradient>
+              </defs>
+              <path class="dock-beam" d="M 58 -2 L 120 -40 L 120 36 L 58 4 Z" fill="url(#g-beam)" />
+              <ellipse class="dock-hull" cx="0" cy="0" rx="62" ry="32" />
+              <rect class="dock-hull" x="-20" y="-52" width="40" height="28" rx="8" />
+              <rect class="dock-mast" x="-3" y="-70" width="6" height="20" rx="2" />
+              <circle class="dock-port" cx="16" cy="-2" r="13" />
+              <circle class="dock-port-glint" cx="12" cy="-6" r="4" />
+              <g class="dock-rivets"><circle cx="-38" cy="16" r="2.5" /><circle cx="-18" cy="20" r="2.5" /><circle cx="36" cy="16" r="2.5" /></g>
+              <rect class="dock-prop" x="-76" y="-16" width="8" height="32" rx="3" />
+              <circle class="dock-lamp" cx="60" cy="0" r="6" />
+            </svg>
+          </button>
 
-          <div class="click-hint" id="click-hint"><span id="click-value">1</span> lumen a tap</div>
-          <ul class="buffs" id="buffs" aria-label="Active glimmerfish boosts"></ul>
-          <div class="comet-layer" id="comet-layer"></div>
+          <button class="btn btn-lg dive-btn" id="dive-btn" type="button"><span data-icon="submarine"></span> Dive <kbd>Space</kbd></button>
+          <p class="dock-hint">Steer with the mouse, a finger or WASD. Grab glowing plankton and air, dodge anything that stings, and surface before you run out.</p>
+          <div class="dock-cards" id="dock-cards"></div>
+          <div class="dock-specs" id="dock-specs"></div>
         </section>
 
         <section class="panel" aria-label="Control desk">

@@ -1,9 +1,10 @@
 import { Game } from '../src/core/game';
-import { GENERATORS } from '../src/data/generators';
+import { HAZARDS, type Dive } from '../src/core/dive';
+import { SHOP, shopCost } from '../src/data/shop';
 import { SKILLS, skillCost, skillUnlocked } from '../src/data/skills';
 
 /** Small deterministic PRNG (mulberry32) so simulations are reproducible. */
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -14,62 +15,85 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/**
- * A scripted "reasonable player": clicks a few times a second, buys the best-value machine,
- * all upgrades, catches half the comets. The game uses Math.random for crits, comets and
- * events, so it is swapped for a seeded generator for the duration of the run.
- */
-export function simulate(opts: { seconds: number; clicksPerSec: number; rebirthAt: (g: Game) => boolean; log?: boolean; seed?: number }) {
+/** A decent but imperfect pilot: chases plankton, grabs air when low, swerves around hazards. */
+export function pilot(d: Dive, skill = 1): void {
+  const s = d.sub;
+  let tx = s.x;
+  let ty = s.y + 260;
+  const lowAir = s.air < s.maxAir * 0.3;
+  let best = Infinity;
+  for (const e of d.ents) {
+    if (e.dead) continue;
+    const want = e.kind === 'mote' || e.kind === 'chest' || (e.kind === 'air' && (lowAir || s.air < s.maxAir * 0.7)) || (e.kind === 'fish' && skill > 0.5);
+    if (!want) continue;
+    const dy = e.y - s.y;
+    if (dy < -180) continue; // don't turn back up for scraps
+    const dist = Math.hypot(e.x - s.x, dy) * (e.kind === 'air' && lowAir ? 0.3 : 1) * (e.kind === 'chest' ? 0.6 : 1);
+    if (dist < best && dist < 520) {
+      best = dist;
+      tx = e.x;
+      ty = e.y;
+    }
+  }
+  for (const e of d.ents) {
+    if (!HAZARDS.has(e.kind) || e.stun > 0) continue;
+    const dx = s.x - e.x;
+    const dy = s.y - e.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 120 * skill) {
+      tx += (dx / dist) * 220;
+      ty += (dy / dist) * 220;
+      if (d.m.dash && dist < 70) d.dash();
+      if (d.m.flare && dist < 90) d.flare();
+    }
+  }
+  d.input.mode = 'pointer';
+  d.input.tx = tx;
+  d.input.ty = ty;
+  if (s.hull <= 1 && d.lumen > 0) d.surface();
+}
+
+/** Plays dives back to back, buying upgrades in between. Time is simulated, not real. */
+export function simulate(opts: { seconds: number; seed?: number; rebuildAt?: (g: Game) => boolean; log?: boolean }) {
   const realRandom = Math.random;
   Math.random = mulberry32(opts.seed ?? 1);
   try {
-    return run(opts);
+    const g = new Game();
+    let t = 0;
+    let runStart = 0;
+    const rebuilds: number[] = [];
+    const dives: { depth: number; banked: number; reason: string }[] = [];
+    while (t < opts.seconds) {
+      const d = g.startDive();
+      while (!d.over && d.time < 600) {
+        pilot(d);
+        d.step(1 / 30);
+        g.tick(1 / 30);
+      }
+      if (!d.over) d.surface();
+      t += d.time + 4; // a few seconds at the dock between dives
+      g.tick(4);
+      dives.push({ depth: d.result!.depth, banked: d.result!.banked, reason: d.result!.reason });
+      // shop: cheapest affordable first
+      for (let k = 0; k < 200; k++) {
+        const opts2 = SHOP.filter((i) => g.canBuy(i.id)).sort((a, b) => shopCost(a, g.shopLevel(a.id)) - shopCost(b, g.shopLevel(b.id)));
+        if (!opts2.length) break;
+        g.buy(opts2[0].id);
+      }
+      for (let k = 0; k < 200; k++) {
+        const opts3 = SKILLS.filter((s) => skillUnlocked(s, g.s.skills) && g.skillLevel(s.id) < s.max && g.s.pearls >= skillCost(s, g.skillLevel(s.id)));
+        if (!opts3.length) break;
+        g.buySkill(opts3.sort((a, b) => skillCost(a, g.skillLevel(a.id)) - skillCost(b, g.skillLevel(b.id)))[0].id);
+      }
+      if ((opts.rebuildAt ?? ((gg) => gg.pearlGain() >= Math.max(3, gg.s.pearlsTotal)))(g)) {
+        rebuilds.push(t - runStart);
+        if (opts.log) console.log(`rebuild #${g.s.rebuilds + 1} after ${((t - runStart) / 60).toFixed(1)} min: +${g.pearlGain()} pearls, deepest ${g.s.deepestRun} m, dives ${g.s.stats.dives}`);
+        g.rebuild();
+        runStart = t;
+      }
+    }
+    return { g, rebuilds, dives };
   } finally {
     Math.random = realRandom;
   }
-}
-
-function run(opts: { seconds: number; clicksPerSec: number; rebirthAt: (g: Game) => boolean; log?: boolean }) {
-  const g = new Game();
-  g.on('comet', () => {
-    if (Math.random() < 0.5) g.catchComet();
-  });
-  const rebirthTimes: number[] = [];
-  let t = 0;
-  let runStart = 0;
-  while (t < opts.seconds) {
-    if (!g.mods.noClick) for (let c = 0; c < opts.clicksPerSec; c++) g.click();
-    g.tick(1);
-    g.buyAllUpgrades();
-    for (let k = 0; k < 60; k++) {
-      let best = -1;
-      let bestScore = 0;
-      for (let i = 0; i <= g.mods.maxGenIndex; i++) {
-        const cost = g.genCost(i);
-        const unit = GENERATORS[i].baseProd * g.mods.genMult[i] * g.globalMult;
-        const score = unit / cost;
-        if (score > bestScore) {
-          bestScore = score;
-          best = i;
-        }
-      }
-      if (best < 0 || g.genCost(best) > g.s.stardust) break;
-      g.buyGen(best, 1);
-    }
-    if (opts.rebirthAt(g)) {
-      rebirthTimes.push(t - runStart);
-      if (opts.log) console.log(`rebirth #${g.s.rebirths + 1} after ${((t - runStart) / 60).toFixed(1)} min, +${g.shardGain()} shards, cps ${g.cps.toExponential(2)}`);
-      g.rebirth();
-      runStart = t;
-      // spend shards: cheapest available node first
-      for (let k = 0; k < 200; k++) {
-        const opts2 = SKILLS.filter((s) => skillUnlocked(s, g.s.skills) && (g.s.skills[s.id] ?? 0) < s.max).sort(
-          (a, b) => skillCost(a, g.s.skills[a.id] ?? 0) - skillCost(b, g.s.skills[b.id] ?? 0),
-        );
-        if (!opts2.length || !g.buySkill(opts2[0].id)) break;
-      }
-    }
-    t++;
-  }
-  return { g, rebirthTimes };
 }

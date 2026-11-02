@@ -1,134 +1,115 @@
-import { GENERATORS } from '../data/generators';
-
 /**
- * Every multiplier and unlock in the game, derived from upgrades, skills, trials and achievements.
- * Recomputed only when one of those sources changes (see Game.invalidate), never per frame.
+ * Every number that shapes a dive or the economy, derived from the sub shop, the Reef,
+ * pearls and finds. Recomputed only when one of those changes.
  */
 export interface Mods {
-  genMult: number[];
-  prodMult: number;
-  prodAdd: number;
-  prodExp: number;
-  clickBase: number;
-  clickMult: number;
-  clickCpsPct: number;
-  critChance: number;
-  critMult: number;
-  comboCap: number;
-  comboPer: number;
-  comboDecay: number;
-  costMult: number;
-  costGrowth: number;
-  upgradeCostMult: number;
-  cometInterval: number;
-  cometPower: number;
-  buffDuration: number;
-  buffPower: number;
-  frenzyMult: number;
-  clickstormMult: number;
-  cometAuto: boolean;
-  twinCometChance: number;
-  wishChance: number;
-  shardMult: number;
-  shardExp: number;
-  shardPer: number;
-  achPer: number;
+  // Sub
+  maxAir: number;
+  airDrain: number;
+  maxHull: number;
+  speed: number;
+  accel: number;
+  light: number;
+  magnet: number;
+  invuln: number;
+  startDepth: number;
+  // Abilities
+  dash: boolean;
+  dashCooldown: number;
+  dashPower: number;
+  dashCharges: number;
+  dashRam: boolean;
+  dashAir: number;
+  flare: boolean;
+  flareCooldown: number;
+  flareRadius: number;
+  flarePull: boolean;
+  zapInterval: number;
+  sonar: number;
+  // Value
+  lumenMult: number;
+  moteMult: number;
+  fishMult: number;
+  fishFlee: number;
+  chestMult: number;
+  chestRate: number;
+  chestPearl: number;
+  chestRepair: boolean;
+  airBubble: number;
+  depthBonus: number;
+  streakCap: number;
+  streakPer: number;
+  streakWindow: number;
+  keepOnBreach: number;
+  bankBonus: number;
+  anglerDamage: number;
+  eventRate: number;
+  // Economy
+  farmLevel: number;
+  farmMult: number;
   offlineEff: number;
   offlineCapH: number;
-  autoClickRate: number;
-  autoClickCombo: boolean;
-  critCombo: boolean;
-  autoGens: boolean;
-  autoUpgrades: boolean;
-  autoRebirth: boolean;
-  startStardust: number;
-  startGens: number;
-  keepUpgrades: boolean;
-  trialsUnlocked: boolean;
-  patienceCap: number;
-  resonance: number;
-  wanderPer: number;
-  synergy: { target: number; source: number; pct: number }[];
-  /** Per harvester: fraction of its output each tap also gives. */
-  tapFromGen: number[];
-  /** Per harvester: +output per one of itself owned. */
-  selfSyn: number[];
-  /** Per harvester: cost multiplier. */
-  genCostMult: number[];
-  /** Per harvester: +all production per one owned. */
-  globalPerGen: number[];
-  eventDuration: number;
-  flareFill: number;
-  flareBonus: number;
-  // Trial restrictions
-  noClick: boolean;
-  noGenProd: boolean;
-  noUpgrades: boolean;
-  noComets: boolean;
-  noSkills: boolean;
-  maxGenIndex: number;
-  entropy: boolean;
+  pearlMult: number;
+  pearlExp: number;
+  pearlPer: number;
+  achPer: number;
+  startLumen: number;
+  keepShop: number;
+  depthPearls: boolean;
+  recordBonus: number;
 }
 
 export function baseMods(): Mods {
   return {
-    genMult: GENERATORS.map(() => 1),
-    prodMult: 1,
-    prodAdd: 0,
-    prodExp: 1,
-    clickBase: 1,
-    clickMult: 1,
-    clickCpsPct: 0,
-    critChance: 0.02,
-    critMult: 10,
-    comboCap: 50,
-    comboPer: 0.01,
-    comboDecay: 1.25,
-    costMult: 1,
-    costGrowth: 1.15,
-    upgradeCostMult: 1,
-    cometInterval: 1,
-    cometPower: 1,
-    buffDuration: 1,
-    buffPower: 1,
-    frenzyMult: 7,
-    clickstormMult: 77,
-    cometAuto: false,
-    twinCometChance: 0,
-    wishChance: 0,
-    shardMult: 1,
-    shardExp: 0.25,
-    shardPer: 0.01,
-    achPer: 0.01,
+    maxAir: 25,
+    airDrain: 1,
+    maxHull: 3,
+    speed: 1,
+    accel: 1,
+    light: 1,
+    magnet: 40,
+    invuln: 1.2,
+    startDepth: 0,
+    dash: false,
+    dashCooldown: 4,
+    dashPower: 1,
+    dashCharges: 1,
+    dashRam: false,
+    dashAir: 0,
+    flare: false,
+    flareCooldown: 18,
+    flareRadius: 260,
+    flarePull: false,
+    zapInterval: 0,
+    sonar: 0,
+    lumenMult: 1,
+    moteMult: 1,
+    fishMult: 1,
+    fishFlee: 1,
+    chestMult: 1,
+    chestRate: 1,
+    chestPearl: 0,
+    chestRepair: false,
+    airBubble: 1,
+    depthBonus: 0,
+    streakCap: 30,
+    streakPer: 0.02,
+    streakWindow: 1.3,
+    keepOnBreach: 0.5,
+    bankBonus: 0,
+    anglerDamage: 2,
+    eventRate: 0.3,
+    farmLevel: 0,
+    farmMult: 1,
     offlineEff: 0.5,
     offlineCapH: 8,
-    autoClickRate: 0,
-    autoClickCombo: false,
-    critCombo: false,
-    autoGens: false,
-    autoUpgrades: false,
-    autoRebirth: false,
-    startStardust: 0,
-    startGens: 0,
-    keepUpgrades: false,
-    trialsUnlocked: false,
-    patienceCap: 0,
-    resonance: 0,
-    wanderPer: 0,
-    synergy: [],
-    tapFromGen: GENERATORS.map(() => 0),
-    selfSyn: GENERATORS.map(() => 0),
-    genCostMult: GENERATORS.map(() => 1),
-    globalPerGen: GENERATORS.map(() => 0),
-    eventDuration: 1,
-    flareFill: 1,
-    flareBonus: 0,
-    noClick: false,
-    noGenProd: false,
-    noUpgrades: false,
-    noComets: false,
-    noSkills: false,
-    maxGenIndex: GENERATORS.length - 1,
-    entropy: false,
+    pearlMult: 1,
+    pearlExp: 0.4,
+    pearlPer: 0.05,
+    achPer: 0.01,
+    startLumen: 0,
+    keepShop: 0,
+    depthPearls: false,
+    recordBonus: 0,
   };
 }

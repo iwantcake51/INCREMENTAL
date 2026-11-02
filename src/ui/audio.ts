@@ -259,6 +259,42 @@ class SoundKit {
     [0, 4, 7, 12, 16].forEach((s, i) => this.tone({ freq: note(s), attack: 0.02, decay: 1.2, gain: 0.06, type: 'triangle', when: 0.32 + i * 0.03, wet: 1 }));
   }
 
+  /** Air bubble collected: a quick rising pop. */
+  bubble(): void {
+    if (!this.ready() || !this.allow()) return;
+    this.tone({ freq: 320, to: 900, decay: 0.08, gain: 0.08, type: 'sine', wet: 0.4 });
+    this.tone({ freq: 640, to: 1400, decay: 0.06, gain: 0.04, type: 'sine', when: 0.05, wet: 0.4 });
+  }
+
+  /** Hull hit: a heavy metallic thud. */
+  hurt(): void {
+    if (!this.ready()) return;
+    this.tone({ freq: 120, to: 45, decay: 0.35, gain: 0.3, type: 'sine' });
+    this.tone({ freq: 230, to: 160, decay: 0.25, gain: 0.08, type: 'square', wet: 0.5 });
+    this.noise({ decay: 0.25, gain: 0.12, freq: 900, q: 0.8, type: 'lowpass' });
+  }
+
+  /** Dash: a rush of water. */
+  dash(): void {
+    if (!this.ready()) return;
+    this.noise({ decay: 0.35, attack: 0.02, gain: 0.12, freq: 2500, sweepTo: 400, q: 0.8, wet: 0.4 });
+    this.tone({ freq: 180, to: 90, decay: 0.25, gain: 0.08, type: 'sine' });
+  }
+
+  /** Eel coil zap. */
+  zap(): void {
+    if (!this.ready()) return;
+    this.tone({ freq: 1600, to: 300, decay: 0.15, gain: 0.05, type: 'sawtooth' });
+    this.noise({ decay: 0.12, gain: 0.06, freq: 6000, q: 2 });
+  }
+
+  /** Low air alarm: two short beeps. */
+  alarm(): void {
+    if (!this.ready()) return;
+    this.tone({ freq: 880, decay: 0.12, gain: 0.07, type: 'square' });
+    this.tone({ freq: 880, decay: 0.12, gain: 0.07, type: 'square', when: 0.2 });
+  }
+
   tick(): void {
     if (!this.ready() || !this.allow()) return;
     this.tone({ freq: 1800, decay: 0.03, gain: 0.03, type: 'sine' });

@@ -50,7 +50,7 @@ export class AchievementsPanel implements Panel {
         t.innerHTML = ic(a.icon);
       }
     }
-    setText(this.count, `${s.achievements.size} of ${ACHIEVEMENTS.length} found, worth +${fmtPct(s.achievements.size * this.game.mods.achPer)} production`);
+    setText(this.count, `${s.achievements.size} of ${ACHIEVEMENTS.length} found, worth +${fmtPct(s.achievements.size * this.game.mods.achPer)} lumen`);
     setWidth(this.bar, s.achievements.size / ACHIEVEMENTS.length);
   }
 }

@@ -1,7 +1,5 @@
 import type { Notation } from './format';
-import { GENERATORS } from '../data/generators';
 
-export type BuyAmount = 1 | 10 | 100 | 'next' | 'max';
 export type Palette = 'lumen' | 'coral' | 'amber' | 'violet';
 
 export interface Settings {
@@ -11,80 +9,70 @@ export interface Settings {
   floatingText: boolean;
   starfield: boolean;
   reducedMotion: 'system' | 'on' | 'off';
-  volume: number; // 0..1
+  volume: number;
   muted: boolean;
   tapSounds: boolean;
   haptics: boolean;
   autosaveSeconds: number;
   offlineProgress: boolean;
   confirmRebirth: boolean;
-  confirmTrial: boolean;
   newsTicker: boolean;
-  uiScale: number; // 0.85..1.25
-  buyAmount: BuyAmount;
+  uiScale: number;
+  /** Steering: follow the pointer, or only move while a button/finger is held. */
+  steer: 'follow' | 'hold';
 }
-
-export interface Buff {
-  id: BuffId;
-  remaining: number; // seconds
-  duration: number;
-}
-export type BuffId = 'frenzy' | 'clickstorm' | 'combolock' | 'flare';
 
 export interface Stats {
-  clicks: number;
-  runClicks: number;
-  clickEarned: number;
-  crits: number;
-  comets: number;
-  runComets: number;
-  bestCombo: number;
-  playTime: number;
-  runTime: number;
-  fastestRebirth: number;
-  bestCps: number;
-  bestClick: number;
-  gensBought: number;
-  upgradesBought: number;
-  shardsEarned: number;
-  offlineEarned: number;
-  starfalls: number;
-  events: number;
+  dives: number;
+  motes: number;
+  fish: number;
+  chests: number;
+  airBubbles: number;
+  hits: number;
+  breaches: number;
+  dashes: number;
   flares: number;
+  zaps: number;
+  bestStreak: number;
+  bestDive: number;
+  diveTime: number;
+  playTime: number;
+  shopLevels: number;
+  pearlsFound: number;
+  offlineEarned: number;
+  farmEarned: number;
+}
+
+export interface LastDive {
+  depth: number;
+  lumen: number;
+  reason: 'surface' | 'air' | 'breach';
+  pearls: number;
 }
 
 export interface GameState {
   version: number;
   created: number;
   lastSave: number;
-  stardust: number;
-  runEarned: number;
-  totalEarned: number;
-  gens: number[];
-  upgrades: Set<string>;
-  shards: number;
-  shardsTotal: number;
+  lumen: number;
+  /** Lumen earned since the last rebuild (drives pearl gain). */
+  lumenRun: number;
+  lumenTotal: number;
+  shop: Record<string, number>;
+  pearls: number;
+  pearlsTotal: number;
   skills: Record<string, number>;
-  rebirths: number;
+  rebuilds: number;
+  deepest: number;
+  deepestRun: number;
   achievements: Set<string>;
-  trial: string | null;
-  trialsDone: Set<string>;
-  buffs: Buff[];
-  event: { id: string; remaining: number; duration: number } | null;
-  eventTimer: number;
-  combo: number;
-  comboTimer: number;
-  /** Flare gauge, 0..1. Filled by manual taps. */
-  surge: number;
-  cometTimer: number;
-  lastPurchaseAge: number; // seconds since last generator purchase (Entropy trial)
-  autobuy: { gens: boolean; upgrades: boolean; rebirth: boolean; rebirthAt: number };
-  flags: Set<string>; // misc one-off flags (secret achievements, seen tutorial...)
+  flags: Set<string>;
   stats: Stats;
+  last: LastDive | null;
   settings: Settings;
 }
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export function defaultSettings(): Settings {
   return {
@@ -101,34 +89,32 @@ export function defaultSettings(): Settings {
     autosaveSeconds: 30,
     offlineProgress: true,
     confirmRebirth: true,
-    confirmTrial: true,
     newsTicker: true,
     uiScale: 1,
-    buyAmount: 1,
+    steer: 'follow',
   };
 }
 
 export function defaultStats(): Stats {
   return {
-    clicks: 0,
-    runClicks: 0,
-    clickEarned: 0,
-    crits: 0,
-    comets: 0,
-    runComets: 0,
-    bestCombo: 0,
-    playTime: 0,
-    runTime: 0,
-    fastestRebirth: Infinity,
-    bestCps: 0,
-    bestClick: 0,
-    gensBought: 0,
-    upgradesBought: 0,
-    shardsEarned: 0,
-    offlineEarned: 0,
-    starfalls: 0,
-    events: 0,
+    dives: 0,
+    motes: 0,
+    fish: 0,
+    chests: 0,
+    airBubbles: 0,
+    hits: 0,
+    breaches: 0,
+    dashes: 0,
     flares: 0,
+    zaps: 0,
+    bestStreak: 0,
+    bestDive: 0,
+    diveTime: 0,
+    playTime: 0,
+    shopLevels: 0,
+    pearlsFound: 0,
+    offlineEarned: 0,
+    farmEarned: 0,
   };
 }
 
@@ -138,29 +124,20 @@ export function newGame(): GameState {
     version: SAVE_VERSION,
     created: now,
     lastSave: now,
-    stardust: 0,
-    runEarned: 0,
-    totalEarned: 0,
-    gens: GENERATORS.map(() => 0),
-    upgrades: new Set(),
-    shards: 0,
-    shardsTotal: 0,
+    lumen: 0,
+    lumenRun: 0,
+    lumenTotal: 0,
+    shop: {},
+    pearls: 0,
+    pearlsTotal: 0,
     skills: {},
-    rebirths: 0,
+    rebuilds: 0,
+    deepest: 0,
+    deepestRun: 0,
     achievements: new Set(),
-    trial: null,
-    trialsDone: new Set(),
-    buffs: [],
-    event: null,
-    eventTimer: 50,
-    combo: 0,
-    comboTimer: 0,
-    cometTimer: 20,
-    surge: 0,
-    lastPurchaseAge: 0,
-    autobuy: { gens: true, upgrades: true, rebirth: false, rebirthAt: 10 },
     flags: new Set(),
     stats: defaultStats(),
+    last: null,
     settings: defaultSettings(),
   };
 }

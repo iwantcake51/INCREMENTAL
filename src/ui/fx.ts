@@ -1,6 +1,20 @@
 import { prefersReducedMotion } from './dom';
 import { ICON_PATHS } from './icons.gen';
-import { GENERATORS } from '../data/generators';
+/** Creatures that drift through the dock's background, unlocked as you dive deeper. */
+export const CREATURES: { icon: string; hue: number }[] = [
+  { icon: 'clownfish', hue: 40 },
+  { icon: 'seahorse', hue: 30 },
+  { icon: 'jellyfish', hue: 300 },
+  { icon: 'sea-turtle', hue: 150 },
+  { icon: 'circling-fish', hue: 175 },
+  { icon: 'eel', hue: 100 },
+  { icon: 'giant-squid', hue: 270 },
+  { icon: 'manta-ray', hue: 200 },
+  { icon: 'angler-fish', hue: 50 },
+  { icon: 'sea-dragon', hue: 160 },
+  { icon: 'sperm-whale', hue: 210 },
+  { icon: 'kraken-tentacle', hue: 320 },
+];
 
 /* ==========================================================================
    Foreground effects: glowing motes, bubbles, floating numbers and ripples.
@@ -387,12 +401,12 @@ class Ocean {
   }
 
   /**
-   * Your harvesters, drawn as faint glowing silhouettes drifting through the water.
-   * More of each kind appear as you own more, and the whole sea brightens with production.
+   * Creatures you have met, drawn as faint glowing silhouettes drifting through the water.
+   * `counts[i]` is how many of CREATURES[i] to show; `rate` (lumen/s) brightens the sea.
    */
   setLife(gens: number[], cps: number): void {
     this.glow = Math.min(1, Math.log10(cps + 1) / 22);
-    const want = gens.map((n) => (n <= 0 ? 0 : Math.min(5, 1 + Math.floor(Math.log10(n) * 1.6))));
+    const want = gens.map((n) => Math.max(0, Math.min(5, Math.floor(n))));
     const key = want.join(',');
     if (key === this.lifeKey) return;
     this.lifeKey = key;
@@ -406,7 +420,7 @@ class Ocean {
   private spawnSwimmer(gen: number, offscreen: boolean): Swimmer {
     let path = this.paths.get(gen);
     if (!path) {
-      path = new Path2D(ICON_PATHS[GENERATORS[gen].icon] ?? '');
+      path = new Path2D(ICON_PATHS[CREATURES[gen].icon] ?? '');
       this.paths.set(gen, path);
     }
     const dir = Math.random() < 0.5 ? -1 : 1;
@@ -419,7 +433,7 @@ class Ocean {
       vx: dir * (0.15 + Math.random() * 0.35) * (1 - gen * 0.04),
       size,
       phase: Math.random() * Math.PI * 2,
-      hue: GENERATORS[gen].hue,
+      hue: CREATURES[gen].hue,
     };
   }
 

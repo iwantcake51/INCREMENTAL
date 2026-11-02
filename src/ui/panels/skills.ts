@@ -170,7 +170,7 @@ export class SkillsPanel implements Panel {
     const lvl = this.game.skillLevel(s.id);
     const cost = lvl < s.max ? skillCost(s, lvl) : 0;
     return `<div class="tip-kicker">${BRANCH_LABEL[s.branch]}, ${lvl}/${s.max}</div><h4>${s.name}</h4><p>${s.desc}</p>
-      ${lvl < s.max ? `<div class="tip-meta"><span>Next level</span><span class="tip-cost ${this.game.s.shards >= cost ? 'ok' : ''}">${fmt(cost)} pearls</span></div>` : '<div class="tip-meta"><span>Fully grown</span></div>'}`;
+      ${lvl < s.max ? `<div class="tip-meta"><span>Next level</span><span class="tip-cost ${this.game.s.pearls >= cost ? 'ok' : ''}">${fmt(cost)} pearls</span></div>` : '<div class="tip-meta"><span>Fully grown</span></div>'}`;
   }
 
   /* ------------------------------------------------------------ actions */
@@ -328,7 +328,7 @@ export class SkillsPanel implements Panel {
     const cost = maxed ? 0 : skillCost(s, lvl);
     const unlocked = skillUnlocked(s, g.s.skills);
     const can = g.canBuySkill(s.id);
-    const key = `${s.id}|${lvl}|${can}|${unlocked}|${g.s.shards >= cost}`;
+    const key = `${s.id}|${lvl}|${can}|${unlocked}|${g.s.pearls >= cost}`;
     if (key === this.detailKey) return;
     this.detailKey = key;
     const reqNames = s.req.map((r) => SKILL_MAP.get(r)!.name).join(' or ');
@@ -352,20 +352,18 @@ export class SkillsPanel implements Panel {
   update(): void {
     const g = this.game;
     const sk = g.s.skills;
-    rollNumber(this.shardsEl, g.s.shards, (n) => `${fmt(n)} black pearls`, { speed: 7 });
+    rollNumber(this.shardsEl, g.s.pearls, (n) => `${fmt(n)} black pearls`, { speed: 7 });
     setText(
       this.noteEl,
-      g.mods.noSkills
-        ? 'Asleep during the Bleached Reef trench'
-        : g.s.shardsTotal === 0 && g.shardGain() === 0
-          ? 'Black Pearls grow the Reef. You get them by descending (see the Descent tab).'
-          : '',
+      g.s.pearlsTotal === 0
+        ? 'Black Pearls grow the Reef. Find them in deep chests, or rebuild your sub in the Drydock.'
+        : ''
     );
     for (const s of SKILLS) {
       const node = this.nodes.get(s.id)!;
       const lvl = sk[s.id] ?? 0;
       const unlocked = skillUnlocked(s, sk);
-      const can = unlocked && lvl < s.max && g.s.shards >= skillCost(s, lvl);
+      const can = unlocked && lvl < s.max && g.s.pearls >= skillCost(s, lvl);
       toggle(node, 'has', lvl > 0);
       toggle(node, 'max', lvl >= s.max);
       toggle(node, 'open', unlocked && lvl === 0);
@@ -385,7 +383,7 @@ export class SkillsPanel implements Panel {
 
   badge(): boolean {
     const g = this.game;
-    if (g.s.shards <= 0) return false;
+    if (g.s.pearls <= 0) return false;
     return SKILLS.some((s) => g.canBuySkill(s.id));
   }
 

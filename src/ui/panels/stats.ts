@@ -1,5 +1,6 @@
 import type { Game } from '../../core/game';
-import { fmt, fmtInt, fmtTime, fmtPct } from '../../core/format';
+import { fmt, fmtInt, fmtTime } from '../../core/format';
+import { zoneAt } from '../../data/zones';
 import { h, setText } from '../dom';
 import type { Panel } from './panel';
 
@@ -16,48 +17,42 @@ export class StatsPanel implements Panel {
     const s = () => this.game.s;
     const g = () => this.game;
     const groups: [string, Row[]][] = [
-      ['This dive', [
-        ['Lumen gathered', () => fmt(s().runEarned)],
-        ['Time', () => fmtTime(s().stats.runTime)],
-        ['Taps', () => fmtInt(s().stats.runClicks)],
-        ['Glimmerfish caught', () => fmtInt(s().stats.runComets)],
-        ['Harvesters owned', () => fmtInt(s().gens.reduce((a, b) => a + b, 0))],
-        ['Upgrades fitted', () => fmtInt(s().upgrades.size)],
+      ['Your sub right now', [
+        ['Air', () => `${Math.round(g().mods.maxAir)}s`],
+        ['Hull', () => fmtInt(g().mods.maxHull)],
+        ['Speed', () => `${Math.round(g().mods.speed * 100)}%`],
+        ['Lamp', () => `${Math.round(g().mods.light * 100)}%`],
+        ['Magnet reach', () => fmtInt(g().mods.magnet)],
+        ['Lumen multiplier', () => `×${fmt(g().mods.lumenMult * g().valueMult())}`],
+        ['Farm', () => (g().farmRate > 0 ? `${fmt(g().farmRate)}/s` : 'not built')],
+        ['Kept when the hull breaks', () => `${Math.round(g().mods.keepOnBreach * 100)}%`],
       ]],
-      ['Right now', [
-        ['Income, taps included', () => `${fmt(g().totalRate)}/s`],
-        ['From harvesters', () => `${fmt(g().cps)}/s`],
-        ['From tapping', () => `${fmt(g().tapRate)}/s`],
-        ['Lumen per tap', () => fmt(g().clickValue())],
-        ['Global multiplier', () => `×${fmt(g().globalMult)}`],
-        ['Lucky-tap chance', () => fmtPct(g().critChance())],
-        ['Lucky-tap payout', () => `×${fmt(g().mods.critMult)}`],
-        ['Longest streak allowed', () => `${g().comboCap()} (×${(1 + g().comboCap() * g().mods.comboPer).toFixed(2)})`],
-        ['While away', () => `${fmtPct(g().mods.offlineEff)} for up to ${g().mods.offlineCapH}h`],
+      ['Records', [
+        ['Deepest dive', () => `${fmtInt(s().deepest)} m (${zoneAt(s().deepest).name})`],
+        ['Best single dive', () => fmt(s().stats.bestDive)],
+        ['Longest streak', () => fmtInt(s().stats.bestStreak)],
       ]],
       ['All time', [
-        ['Lumen gathered', () => fmt(s().totalEarned)],
+        ['Lumen gathered', () => fmt(s().lumenTotal)],
+        ['Dives', () => fmtInt(s().stats.dives)],
+        ['Time underwater', () => fmtTime(s().stats.diveTime)],
         ['Time played', () => fmtTime(s().stats.playTime)],
-        ['Taps', () => fmtInt(s().stats.clicks)],
-        ['Lumen from tapping', () => fmt(s().stats.clickEarned)],
-        ['Lucky taps', () => fmtInt(s().stats.crits)],
-        ['Longest streak', () => fmtInt(s().stats.bestCombo)],
-        ['Best single tap', () => fmt(s().stats.bestClick)],
-        ['Best production', () => `${fmt(s().stats.bestCps)}/s`],
-        ['Harvesters built', () => fmtInt(s().stats.gensBought)],
-        ['Upgrades bought', () => fmtInt(s().stats.upgradesBought)],
-        ['Glimmerfish caught', () => fmtInt(s().stats.comets)],
-        ['Sea events', () => fmtInt(s().stats.events)],
+        ['Plankton collected', () => fmtInt(s().stats.motes)],
+        ['Glimmerfish caught', () => fmtInt(s().stats.fish)],
+        ['Chests opened', () => fmtInt(s().stats.chests)],
+        ['Air bubbles', () => fmtInt(s().stats.airBubbles)],
+        ['Hits taken', () => fmtInt(s().stats.hits)],
+        ['Hull breaches', () => fmtInt(s().stats.breaches)],
+        ['Dashes', () => fmtInt(s().stats.dashes)],
         ['Flares', () => fmtInt(s().stats.flares)],
-        ['Descents', () => fmtInt(s().rebirths)],
-        ['Black Pearls found', () => fmt(s().shardsTotal)],
-        ['Gathered while away', () => fmt(s().stats.offlineEarned)],
-        ['Trenches cleared', () => `${s().trialsDone.size} of 8`],
+        ['Sub upgrades bought', () => fmtInt(s().stats.shopLevels)],
+        ['Rebuilds', () => fmtInt(s().rebuilds)],
+        ['Black Pearls found', () => fmt(s().pearlsTotal)],
+        ['From the farm', () => fmt(s().stats.farmEarned)],
         ['First dive', () => new Date(s().created).toLocaleDateString()],
       ]],
     ];
-    const head = h('div', { class: 'view-head' }, '<h2 class="view-title">Logbook</h2>');
-    this.el.append(head);
+    this.el.append(h('div', { class: 'view-head' }, '<h2 class="view-title">Logbook</h2>'));
     for (const [title, rows] of groups) {
       const wrap = h('div', { class: 'stat-group' }, `<div class="section-h" style="margin-top:0">${title}</div>`);
       const table = h('table', { class: 'stat-table' });

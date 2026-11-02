@@ -1,24 +1,23 @@
 import { Game } from '../core/game';
 import { loadLocal, saveLocal } from '../core/save';
-import { fmt } from '../core/format';
-import { TRIAL_MAP } from '../data/trials';
-import type { AchievementDef } from '../data/achievements';
+import { fmt, fmtInt } from '../core/format';
 import { pickNews } from '../data/news';
+import { ZONES, zoneIndex } from '../data/zones';
+import type { AchievementDef } from '../data/achievements';
 import { $, h, setText, toggle, replay, prefersReducedMotion, rollNumber } from './dom';
 import { ic, hydrateIcons } from './icons';
-import { fx, sky } from './fx';
+import { fx, sky, CREATURES } from './fx';
 import { sound } from './audio';
 import { initToasts, toast } from './toast';
 import { initTooltip, refreshTip, hideTip } from './tooltip';
 import { openDialog } from './modal';
 import { applySettings, buildSettings, buildHelp, showOffline } from './dialogs';
-import { Stage } from './stage';
+import { Dock } from './dock';
+import { DiveView } from './dive-view';
 import type { Panel } from './panels/panel';
-import { GeneratorsPanel } from './panels/generators';
-import { UpgradesPanel } from './panels/upgrades';
+import { ShopPanel } from './panels/shop';
 import { SkillsPanel } from './panels/skills';
-import { NovaPanel } from './panels/nova';
-import { TrialsPanel } from './panels/trials';
+import { DrydockPanel } from './panels/drydock';
 import { AchievementsPanel } from './panels/achievements';
 import { StatsPanel } from './panels/stats';
 
@@ -27,11 +26,11 @@ const TICK_MS = 50;
 
 export class App {
   game: Game;
-  private stage!: Stage;
+  private dock!: Dock;
+  private diveView!: DiveView;
   private panels: Panel[] = [];
   private tabs = new Map<string, { btn: HTMLButtonElement; dot: HTMLElement }>();
-  private active = 'gens';
-  private gensPanel!: GeneratorsPanel;
+  private active = 'shop';
   private settingsDlg!: HTMLDialogElement;
   private helpDlg!: HTMLDialogElement;
   private lastTick = performance.now();
@@ -41,11 +40,13 @@ export class App {
   private newsIdx = -1;
   private tickerAnim: Animation | null = null;
   private tickerTimer = 0;
+  private recordBefore = 0;
 
   constructor() {
     const loaded = loadLocal();
     this.game = new Game(loaded ?? undefined);
-    const firstVisit = !loaded;
+    const firstVisit = !loaded || loaded.flags.has('legacy');
+    this.game.s.flags.delete('legacy');
 
     hydrateIcons();
     initToasts($('toasts'));
@@ -54,8 +55,8 @@ export class App {
     sky.init($<HTMLCanvasElement>('sky'));
     applySettings(this.game.s.settings);
 
-    this.stage = new Stage(this.game);
-    this.stage.haptics = this.game.s.settings.haptics;
+    this.dock = new Dock(this.game, () => this.startDive());
+    this.diveView = new DiveView(this.game, () => this.afterDive());
     this.buildPanels();
     this.bindGameEvents();
     this.bindChrome();
@@ -63,48 +64,72 @@ export class App {
     this.helpDlg = buildHelp();
 
     requestAnimationFrame(() => {
-      this.placeSky();
+      sky.build();
       if (firstVisit) setTimeout(() => openDialog(this.helpDlg), 400);
     });
 
-    // Offline progress
     if (loaded && this.game.s.settings.offlineProgress) {
       const away = (Date.now() - loaded.lastSave) / 1000;
       if (away > 30) this.awardOffline(away);
     }
     this.game.recalc();
-    this.stage.resetCounter();
-    this.syncDepth();
+    this.dock.resetCounter();
+    this.syncLife();
 
     setInterval(() => this.logic(), TICK_MS);
     requestAnimationFrame(this.frame);
     this.nextNews();
   }
 
+  /* ------------------------------------------------------------ diving */
+  private startDive(): void {
+    if (this.game.dive) return;
+    hideTip();
+    document.querySelectorAll('dialog[open]').forEach((d) => (d as HTMLDialogElement).close());
+    this.recordBefore = this.game.s.deepest;
+    const dive = this.game.startDive();
+    this.diveView.start(dive);
+  }
+
+  private afterDive(): void {
+    const last = this.game.s.last;
+    if (!last) return;
+    this.syncLife();
+    this.save();
+    // The full result went out on the diveEnd event; the dock just needs the summary.
+    if (this.pendingResult) this.dock.showSummary(this.pendingResult, last.depth > this.recordBefore && this.recordBefore > 0);
+    this.pendingResult = null;
+    const held = this.deferred;
+    this.deferred = [];
+    setTimeout(() => this.announce(held), 600);
+  }
+
+  private pendingResult: import('../core/dive').DiveResult | null = null;
+  private deferred: AchievementDef[] = [];
+
+  private announce(batch: AchievementDef[]): void {
+    if (!batch.length) return;
+    sound.achievement();
+    if (batch.length <= 2) for (const x of batch) toast({ icon: x.icon, kicker: 'New find', title: x.name, body: x.desc });
+    else toast({ icon: 'triple-shells', kicker: `${batch.length} new finds`, title: batch.map((x) => x.name).slice(0, 3).join(', ') + (batch.length > 3 ? '…' : ''), body: `+${batch.length}% lumen` });
+  }
+
+  /** Creatures from every zone you've reached drift past the dock. */
+  private syncLife(): void {
+    const zi = zoneIndex(this.game.s.deepest);
+    const per = Math.ceil(CREATURES.length / ZONES.length);
+    const counts = CREATURES.map((_, i) => (i < (zi + 1) * per ? 1 + (i % 2) : 0));
+    sky.setLife(counts, this.game.farmRate + this.game.s.deepest);
+    sky.setDepth(zi * 2);
+  }
+
   /* ------------------------------------------------------------ panels & tabs */
   private buildPanels(): void {
-    this.gensPanel = new GeneratorsPanel(this.game);
-    this.panels = [
-      this.gensPanel,
-      new UpgradesPanel(this.game),
-      new SkillsPanel(this.game),
-      new NovaPanel(this.game),
-      new TrialsPanel(this.game),
-      new AchievementsPanel(this.game),
-      new StatsPanel(this.game),
-    ];
+    this.panels = [new ShopPanel(this.game), new SkillsPanel(this.game), new DrydockPanel(this.game), new AchievementsPanel(this.game), new StatsPanel(this.game)];
     const tabsEl = $('tabs');
     const views = $('views');
     for (const p of this.panels) {
-      const btn = h('button', {
-        class: 'tab',
-        type: 'button',
-        role: 'tab',
-        id: `tab-${p.id}`,
-        'aria-controls': `view-${p.id}`,
-        'aria-selected': 'false',
-        tabindex: -1,
-      }) as HTMLButtonElement;
+      const btn = h('button', { class: 'tab', type: 'button', role: 'tab', id: `tab-${p.id}`, 'aria-controls': `view-${p.id}`, 'aria-selected': 'false', tabindex: -1 }) as HTMLButtonElement;
       btn.innerHTML = `${ic(p.icon)}<span class="tab-label">${p.label}</span><span class="tab-dot"></span>`;
       btn.addEventListener('click', () => this.show(p.id, true));
       btn.setAttribute('aria-label', p.label);
@@ -124,14 +149,14 @@ export class App {
       this.show(next.id, true);
       this.tabs.get(next.id)!.btn.focus();
     });
-    let saved = 'gens';
+    let saved = 'shop';
     try {
-      saved = localStorage.getItem(TAB_KEY) ?? 'gens';
+      saved = localStorage.getItem(TAB_KEY) ?? 'shop';
     } catch {
       /* storage blocked */
     }
     this.updateTabAvailability();
-    this.show(this.panels.some((p) => p.id === saved && (p.available?.() ?? true)) ? saved : 'gens', false);
+    this.show(this.panels.some((p) => p.id === saved && (p.available?.() ?? true)) ? saved : 'shop', false);
   }
 
   private show(id: string, user: boolean): void {
@@ -180,31 +205,32 @@ export class App {
     const dt = (now - this.lastTick) / 1000;
     this.lastTick = now;
     if (dt > 60) {
-      // Computer slept with the tab open: treat as offline time.
       if (this.game.s.settings.offlineProgress) this.awardOffline(dt);
       return;
     }
     this.game.tick(dt);
-    if (Date.now() - this.lastSave > this.game.s.settings.autosaveSeconds * 1000) this.save();
+    if (Date.now() - this.lastSave > this.game.s.settings.autosaveSeconds * 1000 && !this.game.dive) this.save();
   }
 
   private frame = (now: number): void => {
     requestAnimationFrame(this.frame);
-    if (document.hidden) return;
-    this.stage.update(now);
+    if (document.hidden || this.diveView.active) return;
     if (now - this.lastPanel > 100) {
       this.lastPanel = now;
+      this.dock.update();
       this.panels.find((p) => p.id === this.active)?.update();
-      rollNumber($('shards-top'), this.game.s.shards, fmt, { speed: 6 });
+      rollNumber($('shards-top'), this.game.s.pearls, fmt, { speed: 6 });
     }
     if (now - this.lastSlow > 500) {
       this.lastSlow = now;
-      sky.setLife(this.game.s.gens, this.game.cps);
-      const pending = this.game.shardGain();
-      $('chip-shards').hidden = this.game.s.shardsTotal <= 0 && pending <= 0;
+      const pending = this.game.pearlGain();
+      $('chip-shards').hidden = this.game.s.pearlsTotal <= 0 && pending <= 0;
       const pend = $('shards-pending');
       pend.hidden = pending <= 0;
-      if (pending > 0) setText(pend, `+${fmt(pending)} waiting`);
+      if (pending > 0) setText(pend, `+${fmt(pending)} if you rebuild`);
+      const d = this.game.s.deepest;
+      $('depth-tag').hidden = d <= 0;
+      setText($('depth-num'), `${fmtInt(d)} m`);
       this.updateTabAvailability();
       refreshTip();
     }
@@ -227,58 +253,45 @@ export class App {
   /* ------------------------------------------------------------ game events */
   private bindGameEvents(): void {
     const g = this.game;
-    // Feats unlocked in the same moment are announced together instead of as a wall of toasts.
     let pending: AchievementDef[] = [];
     g.on('achievement', (a) => {
+      // While diving, hold finds back and announce them at the dock.
+      if (this.diveView.active || g.dive) {
+        this.deferred.push(a);
+        return;
+      }
       if (!pending.length)
         queueMicrotask(() => {
           const batch = pending;
           pending = [];
-          sound.achievement();
-          if (batch.length <= 2) for (const x of batch) toast({ icon: x.icon, kicker: 'New find', title: x.name, body: x.desc });
-          else toast({ icon: 'triple-shells', kicker: `${batch.length} new finds`, title: batch.map((x) => x.name).slice(0, 3).join(', ') + (batch.length > 3 ? '…' : ''), body: `+${batch.length}% production` });
+          this.announce(batch);
         });
       pending.push(a);
     });
-    g.on('comet', ({ twin }) => {
-      this.stage.spawnComet();
-      if (twin) setTimeout(() => this.stage.spawnComet(), 700);
-    });
-    g.on('event', (e) => this.stage.onEvent(e));
-    g.on('flare', () => this.stage.onFlare());
-    g.on('eventEnd', (e) => toast({ icon: e.icon, kicker: 'The sea settles', title: `${e.name} is over`, ms: 2600 }));
-    g.on('rebirth', ({ shards }) => {
+    g.on('diveEnd', (r) => (this.pendingResult = r));
+    g.on('rebuild', ({ pearls }) => {
       sound.rebirth();
-      this.stage.supernova();
+      replay($('flash'), 'go');
+      if (!prefersReducedMotion()) replay($('app'), 'quake');
       replay($('chip-shards'), 'bump');
-      if (shards > 0) toast({ icon: 'oyster-pearl', kicker: `Depth ${this.game.s.rebirths + 1}`, title: `+${fmt(shards)} Black Pearls`, body: 'Spend them growing the Reef.', tone: 'shard' });
-      this.syncDepth();
+      this.dock.resetCounter();
+      if (pearls > 0) toast({ icon: 'oyster-pearl', kicker: 'A new sub', title: `+${fmt(pearls)} Black Pearls`, body: 'Spend them growing the Reef.', tone: 'shard' });
       this.updateTabAvailability();
-      this.save();
-    });
-    g.on('trialComplete', (id) => {
-      const t = TRIAL_MAP.get(id)!;
-      sound.achievement();
-      const c = this.stage.starCenter();
-      fx.burst(c.x, c.y, 120, { speed: 9, size: 3 });
-      toast({ icon: t.icon, kicker: 'Trench cleared', title: t.name, body: `Reward: ${t.reward}`, tone: 'good', ms: 7000 });
       this.save();
     });
     g.on('reset', () => this.onReset());
   }
 
   private onReset(): void {
-    this.stage.resetCounter();
-    this.syncDepth();
-    this.stage.haptics = this.game.s.settings.haptics;
+    this.dock.resetCounter();
     applySettings(this.game.s.settings);
-    // Settings dialog mirrors state, so rebuild it after imports.
     const wasOpen = this.settingsDlg.open;
     this.settingsDlg.remove();
     this.settingsDlg = buildSettings(this.game, () => this.onReset());
     if (wasOpen) openDialog(this.settingsDlg);
+    this.syncLife();
     this.updateTabAvailability();
-    if (!(this.panels.find((p) => p.id === this.active)?.available?.() ?? true)) this.show('gens', false);
+    if (!(this.panels.find((p) => p.id === this.active)?.available?.() ?? true)) this.show('shop', false);
     this.panels.forEach((p) => p.update());
   }
 
@@ -303,58 +316,44 @@ export class App {
       syncMute();
       sound.tick();
     });
-    this.settingsDlg?.addEventListener?.('close', syncMute);
-    document.addEventListener('change', () => {
-      syncMute();
-      this.stage.haptics = g.s.settings.haptics;
-      this.placeSky();
-    });
+    document.addEventListener('change', syncMute);
 
     $('brand').addEventListener('click', () => {
       g.s.flags.add('title');
       const r = $('brand').getBoundingClientRect();
-      fx.burst(r.left + 18, r.top + r.height / 2, 24, { speed: 3 });
+      fx.bubbles(r.left + 18, r.top + r.height / 2, 12);
       sound.unlock();
-      sound.tick();
+      sound.bubble();
     });
-
     $('ticker').addEventListener('click', () => {
       g.s.flags.add('news');
       this.nextNews();
     });
 
-    // First interaction anywhere unlocks audio.
     const unlock = () => sound.unlock();
     addEventListener('pointerdown', unlock, { once: true, capture: true });
     addEventListener('keydown', unlock, { once: true, capture: true });
 
     addEventListener('keydown', (e) => {
+      if (this.diveView.active) return; // the dive handles its own keys
       const t = e.target as HTMLElement;
       if (t.closest('input, textarea, select') || document.querySelector('dialog[open]')) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         this.save();
-        toast({ icon: 'save', title: 'Game saved', ms: 1800 });
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const n = Number(e.key);
-      if (e.key === ' ' && !e.repeat && !t.closest('button, a, [role="tab"]')) {
+      if ((e.key === ' ' || e.key === 'Enter') && !e.repeat && !t.closest('button, a, [role="tab"]')) {
         e.preventDefault();
-        sound.unlock();
-        this.stage.tapCenter();
+        this.startDive();
         return;
       }
+      const n = Number(e.key);
       if (n >= 1 && n <= this.panels.length) {
         const p = this.panels[n - 1];
         if (!this.tabs.get(p.id)!.btn.hidden) this.show(p.id, true);
-      } else if (e.key.toLowerCase() === 'b') this.gensPanel.cycleAmount();
-      else if (e.key.toLowerCase() === 'm') mute.click();
-      else if (e.key.toLowerCase() === 'x') this.gensPanel.spendAll();
-      else if (e.key.toLowerCase() === 'u') {
-        if (g.buyAllUpgrades() > 0) sound.upgrade();
-        else sound.denied();
-      }
+      } else if (e.key.toLowerCase() === 'm') mute.click();
     });
 
     document.addEventListener('visibilitychange', () => {
@@ -362,25 +361,10 @@ export class App {
       else this.lastPanel = 0;
     });
     addEventListener('pagehide', () => this.save(false));
-    addEventListener('resize', () => this.placeSky());
 
-    // Tab title shows your stash while you're away.
     setInterval(() => {
-      document.title = document.hidden ? `${fmt(g.s.stardust)} lumen · Lanterndeep` : 'Lanterndeep';
+      document.title = document.hidden ? `${fmt(g.s.lumen)} lumen · Lanterndeep` : 'Lanterndeep';
     }, 1000);
-  }
-
-  /** Depth tag in the top bar and darker water the deeper you go. */
-  private syncDepth(): void {
-    const d = this.game.s.rebirths;
-    $('depth-tag').hidden = d === 0;
-    setText($('depth-num'), String(d + 1));
-    sky.setDepth(d);
-  }
-
-  private placeSky(): void {
-    const c = this.stage.starCenter();
-    if (c.x || c.y) sky.setCenter(c.x / innerWidth, c.y / innerHeight);
   }
 
   /* ------------------------------------------------------------ ticker */

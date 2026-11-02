@@ -1,10 +1,7 @@
-import { GENERATORS } from '../data/generators';
-import { UPGRADE_MAP } from '../data/upgrades';
+import { SHOP_MAP } from '../data/shop';
 import { SKILL_MAP } from '../data/skills';
-import { TRIAL_MAP } from '../data/trials';
 import { ACH_MAP } from '../data/achievements';
-import { EVENT_MAP } from '../data/events';
-import { defaultSettings, defaultStats, newGame, SAVE_VERSION, type GameState } from './state';
+import { defaultSettings, defaultStats, newGame, type GameState } from './state';
 
 export const STORAGE_KEY = 'lanterndeep-save';
 const EXPORT_PREFIX = 'LD1:';
@@ -16,11 +13,8 @@ export function serialize(s: GameState): string {
   return JSON.stringify({
     ...s,
     lastSave: Date.now(),
-    upgrades: [...s.upgrades],
     achievements: [...s.achievements],
-    trialsDone: [...s.trialsDone],
     flags: [...s.flags],
-    stats: { ...s.stats, fastestRebirth: Number.isFinite(s.stats.fastestRebirth) ? s.stats.fastestRebirth : null },
   });
 }
 
@@ -35,55 +29,49 @@ export function deserialize(text: string): GameState {
   const raw = JSON.parse(text) as Json;
   if (!raw || typeof raw !== 'object') throw new Error('Save is not an object');
   const s = newGame();
-  s.version = SAVE_VERSION;
+  // Saves from before the sub rewrite (version < 2) are a different game: keep only settings.
+  const legacy = num(raw.version, 1) < 2;
   s.created = num(raw.created, s.created);
   s.lastSave = num(raw.lastSave, Date.now());
-  s.stardust = num(raw.stardust, 0);
-  s.runEarned = num(raw.runEarned, 0);
-  s.totalEarned = num(raw.totalEarned, 0);
-  const gens = Array.isArray(raw.gens) ? raw.gens : [];
-  s.gens = GENERATORS.map((_, i) => Math.floor(num(gens[i], 0)));
-  s.upgrades = new Set(arr(raw.upgrades).filter((id) => UPGRADE_MAP.has(id)));
-  s.shards = num(raw.shards, 0);
-  s.shardsTotal = num(raw.shardsTotal, s.shards);
-  s.skills = {};
-  if (raw.skills && typeof raw.skills === 'object') {
-    for (const [id, lvl] of Object.entries(raw.skills as Json)) {
-      const def = SKILL_MAP.get(id);
-      if (def) s.skills[id] = Math.min(def.max, Math.floor(num(lvl, 0)));
+  if (!legacy) {
+    s.lumen = num(raw.lumen, 0);
+    s.lumenRun = num(raw.lumenRun, 0);
+    s.lumenTotal = num(raw.lumenTotal, 0);
+    if (raw.shop && typeof raw.shop === 'object') {
+      for (const [id, lvl] of Object.entries(raw.shop as Json)) {
+        const item = SHOP_MAP.get(id);
+        if (item) s.shop[id] = Math.min(item.max, Math.floor(num(lvl, 0)));
+      }
     }
+    s.pearls = Math.floor(num(raw.pearls, 0));
+    s.pearlsTotal = Math.floor(num(raw.pearlsTotal, s.pearls));
+    if (raw.skills && typeof raw.skills === 'object') {
+      for (const [id, lvl] of Object.entries(raw.skills as Json)) {
+        const def = SKILL_MAP.get(id);
+        if (def) s.skills[id] = Math.min(def.max, Math.floor(num(lvl, 0)));
+      }
+    }
+    s.rebuilds = Math.floor(num(raw.rebuilds, 0));
+    s.deepest = num(raw.deepest, 0);
+    s.deepestRun = num(raw.deepestRun, 0);
+    s.achievements = new Set(arr(raw.achievements).filter((id) => ACH_MAP.has(id)));
+    s.flags = new Set(arr(raw.flags));
+    const st = (raw.stats ?? {}) as Json;
+    const ds = defaultStats();
+    for (const key of Object.keys(ds) as (keyof typeof ds)[]) ds[key] = num(st[key], ds[key]);
+    s.stats = ds;
+    const last = raw.last as Json | null;
+    if (last && typeof last === 'object') {
+      s.last = {
+        depth: num(last.depth, 0),
+        lumen: num(last.lumen, 0),
+        reason: pick(last.reason, ['surface', 'air', 'breach'] as const, 'surface'),
+        pearls: num(last.pearls, 0),
+      };
+    }
+  } else {
+    s.flags.add('legacy');
   }
-  s.rebirths = Math.floor(num(raw.rebirths, 0));
-  s.achievements = new Set(arr(raw.achievements).filter((id) => ACH_MAP.has(id)));
-  s.trial = typeof raw.trial === 'string' && TRIAL_MAP.has(raw.trial) ? raw.trial : null;
-  s.trialsDone = new Set(arr(raw.trialsDone).filter((id) => TRIAL_MAP.has(id)));
-  if (Array.isArray(raw.buffs)) {
-    s.buffs = (raw.buffs as Json[])
-      .filter((b) => b && ['frenzy', 'clickstorm', 'combolock', 'flare'].includes(b.id as string))
-      .map((b) => ({ id: b.id as 'frenzy', remaining: num(b.remaining, 0), duration: num(b.duration, 1, 1) }));
-  }
-  s.cometTimer = num(raw.cometTimer, 45);
-  s.eventTimer = num(raw.eventTimer, 50);
-  s.surge = Math.min(1, num(raw.surge, 0));
-  const ev = raw.event as Json | null;
-  if (ev && typeof ev.id === 'string' && EVENT_MAP.has(ev.id)) {
-    s.event = { id: ev.id, remaining: num(ev.remaining, 0), duration: num(ev.duration, 1, 1) };
-  }
-  const ab = (raw.autobuy ?? {}) as Json;
-  s.autobuy = {
-    gens: bool(ab.gens, true),
-    upgrades: bool(ab.upgrades, true),
-    rebirth: bool(ab.rebirth, false),
-    rebirthAt: num(ab.rebirthAt, 10, 1),
-  };
-  s.flags = new Set(arr(raw.flags));
-
-  const st = (raw.stats ?? {}) as Json;
-  const ds = defaultStats();
-  for (const key of Object.keys(ds) as (keyof typeof ds)[]) {
-    ds[key] = key === 'fastestRebirth' ? (typeof st[key] === 'number' ? (st[key] as number) : Infinity) : num(st[key], ds[key]);
-  }
-  s.stats = ds;
 
   const se = (raw.settings ?? {}) as Json;
   const d = defaultSettings();
@@ -101,10 +89,9 @@ export function deserialize(text: string): GameState {
     autosaveSeconds: pick(se.autosaveSeconds, [10, 30, 60, 120] as const, 30),
     offlineProgress: bool(se.offlineProgress, d.offlineProgress),
     confirmRebirth: bool(se.confirmRebirth, d.confirmRebirth),
-    confirmTrial: bool(se.confirmTrial, d.confirmTrial),
     newsTicker: bool(se.newsTicker, d.newsTicker),
     uiScale: Math.min(1.25, Math.max(0.85, num(se.uiScale, 1))),
-    buyAmount: pick(se.buyAmount, [1, 10, 100, 'next', 'max'] as const, 1),
+    steer: pick(se.steer, ['follow', 'hold'] as const, d.steer),
   };
   return s;
 }
