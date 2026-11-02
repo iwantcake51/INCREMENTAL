@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="en" data-palette="brass">
+<html lang="en" data-palette="lumen">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#070a14" />
+    <meta name="theme-color" content="#04141a" />
     <meta name="color-scheme" content="dark" />
-    <meta name="description" content="Astral Forge — click the star, build an observatory full of machines, go supernova and chart a constellation of upgrades." />
-    <title>Astral Forge</title>
+    <meta name="description" content="Lanterndeep: tap a glowing lure at the bottom of the sea, build a fleet of strange harvesters, and keep descending." />
+    <title>Lanterndeep</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
   </head>
@@ -15,15 +15,19 @@
 
     <div class="app" id="app">
       <header class="topbar">
-        <button class="brand" id="brand" type="button" aria-label="Astral Forge">
-          <span class="brand-mark" aria-hidden="true"></span>
-          <span class="brand-name">Astral <em>Forge</em></span>
+        <button class="brand" id="brand" type="button" aria-label="Lanterndeep">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M6 2c8 2 12 7 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <circle cx="16" cy="23" r="6" class="brand-bulb" />
+          </svg>
+          <span class="brand-name">Lanterndeep</span>
         </button>
+        <div class="depth-tag" id="depth-tag" hidden>Depth <b id="depth-num">1</b></div>
         <div class="topbar-res">
           <div class="chip chip-shards" id="chip-shards" hidden>
-            <span class="chip-ic" data-icon="crystal-cluster"></span>
+            <span class="chip-ic" data-icon="oyster-pearl"></span>
             <span class="chip-val" id="shards-top">0</span>
-            <span class="chip-label">shards</span>
+            <span class="chip-label">black pearls</span>
           </div>
         </div>
         <div class="topbar-actions">
@@ -34,74 +38,76 @@
       </header>
 
       <main class="layout">
-        <section class="stage" id="stage" aria-label="Observatory">
+        <section class="stage" id="stage" aria-label="The lure">
           <div class="banners" id="banners">
-          <div class="trial-banner" id="trial-banner" hidden>
-            <span class="trial-banner-ic" id="trial-banner-ic"></span>
-            <div class="trial-banner-body">
-              <div class="trial-banner-title" id="trial-banner-title"></div>
-              <div class="bar"><div class="bar-fill" id="trial-banner-bar"></div></div>
+            <div class="trial-banner" id="trial-banner" hidden>
+              <span class="trial-banner-ic" id="trial-banner-ic"></span>
+              <div class="trial-banner-body">
+                <div class="trial-banner-title" id="trial-banner-title"></div>
+                <div class="bar"><div class="bar-fill" id="trial-banner-bar"></div></div>
+              </div>
+              <button class="btn btn-ghost btn-sm" id="trial-abandon" type="button">Surface</button>
             </div>
-            <button class="btn btn-ghost btn-sm" id="trial-abandon" type="button">Abandon</button>
-          </div>
           </div>
 
           <div class="counter">
             <div class="counter-value" id="stardust" aria-live="off">0</div>
-            <div class="counter-label">stardust</div>
-            <div class="counter-rate"><span id="cps">0</span> per second</div>
+            <div class="counter-label">lumen</div>
+            <div class="counter-rate"><span id="cps">0</span> a second</div>
           </div>
 
           <div class="star-wrap">
-            <button class="star" id="star" type="button" aria-label="Click the star to gather stardust">
-              <svg class="star-svg" viewBox="-200 -200 400 400" aria-hidden="true">
+            <button class="star" id="star" type="button" aria-label="Tap the lure to gather lumen">
+              <svg class="star-svg" id="lure-svg" viewBox="-200 -200 400 400" aria-hidden="true">
                 <defs>
                   <radialGradient id="g-halo">
-                    <stop offset="0" stop-color="var(--star-glow)" stop-opacity=".55" />
-                    <stop offset=".45" stop-color="var(--star-glow)" stop-opacity=".12" />
-                    <stop offset="1" stop-color="var(--star-glow)" stop-opacity="0" />
+                    <stop offset="0" stop-color="var(--lure-glow)" stop-opacity=".5" />
+                    <stop offset=".4" stop-color="var(--lure-glow)" stop-opacity=".12" />
+                    <stop offset="1" stop-color="var(--lure-glow)" stop-opacity="0" />
                   </radialGradient>
-                  <radialGradient id="g-core" cx="42%" cy="38%" r="70%">
-                    <stop offset="0" stop-color="#fffaf0" />
-                    <stop offset=".35" stop-color="var(--star-hot)" />
-                    <stop offset=".8" stop-color="var(--star-mid)" />
-                    <stop offset="1" stop-color="var(--star-edge)" />
+                  <radialGradient id="g-core" cx="40%" cy="36%" r="72%">
+                    <stop offset="0" stop-color="#fbfff9" />
+                    <stop offset=".3" stop-color="var(--lure-hot)" />
+                    <stop offset=".75" stop-color="var(--lure-mid)" />
+                    <stop offset="1" stop-color="var(--lure-edge)" />
                   </radialGradient>
-                  <radialGradient id="g-ray" cx="50%" cy="50%" r="50%">
-                    <stop offset="0" stop-color="#fff6dc" stop-opacity=".9" />
-                    <stop offset="1" stop-color="#fff6dc" stop-opacity="0" />
-                  </radialGradient>
+                  <linearGradient id="g-stalk" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stop-color="#1d3f45" />
+                    <stop offset=".5" stop-color="#2f5a5f" />
+                    <stop offset="1" stop-color="#132a2f" />
+                  </linearGradient>
                   <filter id="f-grain" x="-10%" y="-10%" width="120%" height="120%">
-                    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n" />
+                    <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="11" result="n" />
                     <feColorMatrix in="n" type="saturate" values="0" result="g" />
                     <feComposite in="g" in2="SourceGraphic" operator="in" result="m" />
                     <feBlend in="SourceGraphic" in2="m" mode="soft-light" />
                   </filter>
                 </defs>
-                <circle class="star-halo" r="200" fill="url(#g-halo)" />
-                <g class="star-rays star-rays-a" id="rays-a"></g>
-                <g class="star-rays star-rays-b" id="rays-b"></g>
-                <g class="astrolabe" id="astrolabe">
-                  <circle r="128" class="astro-ring" />
-                  <circle r="120" class="astro-ring astro-ring-thin" />
-                  <g id="astro-ticks"></g>
-                </g>
-                <circle r="124" class="combo-track" />
-                <circle r="124" class="combo-arc" id="combo-arc" pathLength="1000" transform="rotate(-90)" />
-                <g class="star-body" id="star-body">
-                  <circle r="86" fill="url(#g-core)" filter="url(#f-grain)" />
-                  <circle r="86" class="star-rim" />
+                <g id="lure-sway">
+                  <animateTransform attributeName="transform" type="rotate" values="-2.5 -300 -470; 2.5 -300 -470; -2.5 -300 -470" keyTimes="0;0.5;1" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1" dur="9s" repeatCount="indefinite" />
+                  <path class="stalk" d="M -300 -470 C -230 -300, -40 -300, 0 -96" />
+                  <path class="stalk-hi" d="M -300 -470 C -230 -300, -40 -300, 0 -96" />
+                  <circle class="star-halo" r="200" fill="url(#g-halo)" />
+                  <g class="star-rays star-rays-a" id="rays-a"></g>
+                  <g class="star-rays star-rays-b" id="rays-b"></g>
+                  <circle r="116" class="combo-track" />
+                  <circle r="116" class="combo-arc" id="combo-arc" pathLength="1000" transform="rotate(-90)" />
+                  <g class="star-body" id="star-body">
+                    <circle r="86" fill="url(#g-core)" filter="url(#f-grain)" />
+                    <ellipse class="lure-shine" cx="-30" cy="-38" rx="24" ry="14" transform="rotate(-30 -30 -38)" />
+                    <circle r="86" class="star-rim" />
+                  </g>
                 </g>
               </svg>
             </button>
             <div class="combo" id="combo" aria-live="off">
+              <span class="combo-label">streak</span>
               <span class="combo-x" id="combo-x">×1.00</span>
-              <span class="combo-label">combo</span>
             </div>
           </div>
 
-          <div class="click-hint" id="click-hint">+<span id="click-value">1</span> per click</div>
-          <ul class="buffs" id="buffs" aria-label="Active comet buffs"></ul>
+          <div class="click-hint" id="click-hint"><span id="click-value">1</span> lumen a tap</div>
+          <ul class="buffs" id="buffs" aria-label="Active glimmerfish boosts"></ul>
           <div class="comet-layer" id="comet-layer"></div>
         </section>
 
@@ -111,8 +117,8 @@
         </section>
       </main>
 
-      <footer class="ticker" id="ticker" aria-label="News">
-        <span class="ticker-tag">Dispatch</span>
+      <footer class="ticker" id="ticker" aria-label="Radio">
+        <span class="ticker-tag">Radio</span>
         <div class="ticker-track"><span class="ticker-text" id="ticker-text"></span></div>
       </footer>
     </div>

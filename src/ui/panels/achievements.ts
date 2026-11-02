@@ -8,8 +8,8 @@ import type { Panel } from './panel';
 
 export class AchievementsPanel implements Panel {
   id = 'ach';
-  label = 'Feats';
-  icon = 'trophy-cup';
+  label = 'Finds';
+  icon = 'triple-shells';
   el = h('div', { class: 'view' });
   private count: HTMLElement;
   private bar: HTMLElement;
@@ -18,7 +18,7 @@ export class AchievementsPanel implements Panel {
 
   constructor(private game: Game) {
     const head = h('div', { class: 'view-head' });
-    head.innerHTML = `<div><h2 class="view-title">Feats</h2><div class="view-sub"></div></div><div class="spacer"></div>
+    head.innerHTML = `<div><h2 class="view-title">Finds</h2><div class="view-sub"></div></div><div class="spacer"></div>
       <div class="ach-progress"><div class="bar"><div class="bar-fill"></div></div></div>`;
     this.count = head.querySelector('.view-sub')!;
     this.bar = head.querySelector('.bar-fill')!;
@@ -28,8 +28,8 @@ export class AchievementsPanel implements Panel {
       t.innerHTML = ic(a.secret ? 'help' : a.icon);
       tip(t, () => {
         const got = this.game.s.achievements.has(a.id);
-        if (a.secret && !got) return `<div class="tip-kicker">Secret feat</div><h4>???</h4><p>Some feats reveal themselves only when earned.</p>`;
-        return `<div class="tip-kicker">${got ? 'Earned' : 'Locked'}</div><h4>${a.name}</h4><p>${a.desc}</p>`;
+        if (a.secret && !got) return `<div class="tip-kicker">Secret</div><h4>Still hidden</h4><p>Some finds only show themselves once you stumble on them.</p>`;
+        return `<div class="tip-kicker">${got ? 'Found' : 'Not yet'}</div><h4>${a.name}</h4><p>${a.desc}</p>`;
       });
       this.tiles.set(a.id, t);
       grid.append(t);
@@ -50,7 +50,7 @@ export class AchievementsPanel implements Panel {
         t.innerHTML = ic(a.icon);
       }
     }
-    setText(this.count, `${s.achievements.size} / ${ACHIEVEMENTS.length} earned · +${fmtPct(s.achievements.size * this.game.mods.achPer)} production`);
+    setText(this.count, `${s.achievements.size} of ${ACHIEVEMENTS.length} found, worth +${fmtPct(s.achievements.size * this.game.mods.achPer)} production`);
     setWidth(this.bar, s.achievements.size / ACHIEVEMENTS.length);
   }
 }

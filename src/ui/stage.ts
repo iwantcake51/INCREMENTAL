@@ -60,7 +60,7 @@ export class Stage {
     this.trialBanner.after(this.eventBanner);
     tip(this.eventBanner, () => {
       const e = this.game.event;
-      return e ? `<div class="tip-kicker">Cosmic event</div><h4>${e.name}</h4><p>${e.desc}</p>` : '';
+      return e ? `<div class="tip-kicker">Sea event</div><h4>${e.name}</h4><p>${e.desc}</p>` : '';
     });
 
     this.star.addEventListener('pointerdown', (e) => {
@@ -78,54 +78,42 @@ export class Stage {
     });
     $('trial-abandon').addEventListener('click', async () => {
       const ok = await confirmDialog({
-        title: 'Abandon trial?',
+        title: 'Surface early?',
         icon: 'interdiction',
-        html: '<p>Leaving the trial ends this run with a Supernova. You keep any Nova Shards earned so far.</p>',
-        confirm: 'Abandon trial',
+        html: '<p>Leaving the trench ends this dive with a descent. You keep any Black Pearls you have earned.</p>',
+        confirm: 'Leave the trench',
         danger: true,
       });
       if (ok) this.game.rebirth();
     });
     tip(this.clickHint, () => {
       const m = this.game.mods;
-      return `<h4>Your touch</h4><p>Clicks build a combo (up to ×${(1 + this.game.comboCap() * m.comboPer).toFixed(2)}). ${
-        Math.round(this.game.critChance() * 100)
-      }% chance to crit for ×${m.critMult}.${m.autoClickRate > 0 ? ` Echo Hands click ${m.autoClickRate}×/s for you.` : ''}</p>`;
+      return `<h4>Your taps</h4><p>Tap in rhythm to build a streak (up to ×${(1 + this.game.comboCap() * m.comboPer).toFixed(2)}). Each tap has a ${Math.round(
+        this.game.critChance() * 100,
+      )}% chance to be lucky and pay ×${m.critMult}.${m.autoClickRate > 0 ? ` Your echo hands tap ${m.autoClickRate} times a second.` : ''}</p>`;
     });
   }
 
   /* ------------------------------------------------------------ star art */
   private buildStar(): void {
-    const ticks = $('astro-ticks');
-    for (let i = 0; i < 72; i++) {
-      const a = (i / 72) * Math.PI * 2;
-      const major = i % 6 === 0;
-      const r1 = 128;
-      const r2 = major ? 140 : 134;
-      const l = document.createElementNS(SVG_NS, 'line');
-      l.setAttribute('x1', String(Math.cos(a) * r1));
-      l.setAttribute('y1', String(Math.sin(a) * r1));
-      l.setAttribute('x2', String(Math.cos(a) * r2));
-      l.setAttribute('y2', String(Math.sin(a) * r2));
-      if (major) l.classList.add('major');
-      ticks.append(l);
-    }
-    const rays = (g: SVGGElement, n: number, min: number, max: number, width: number) => {
+    // Plankton drifting around the lure: two loose rings of glowing specks.
+    const plankton = (g: SVGGElement, n: number, min: number, max: number, size: number) => {
       for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.18;
-        const len = min + Math.random() * (max - min);
-        const l = document.createElementNS(SVG_NS, 'line');
-        l.setAttribute('x1', String(Math.cos(a) * 70));
-        l.setAttribute('y1', String(Math.sin(a) * 70));
-        l.setAttribute('x2', String(Math.cos(a) * len));
-        l.setAttribute('y2', String(Math.sin(a) * len));
-        l.setAttribute('stroke-width', String(width * (0.5 + Math.random())));
-        l.setAttribute('stroke-opacity', String(0.25 + Math.random() * 0.45));
-        g.append(l);
+        const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        const r = min + Math.random() * (max - min);
+        const c = document.createElementNS(SVG_NS, 'circle');
+        c.setAttribute('cx', (Math.cos(a) * r).toFixed(1));
+        c.setAttribute('cy', (Math.sin(a) * r).toFixed(1));
+        c.setAttribute('r', (size * (0.4 + Math.random() * 0.9)).toFixed(2));
+        c.setAttribute('opacity', (0.3 + Math.random() * 0.6).toFixed(2));
+        g.append(c);
       }
     };
-    rays(this.raysA, 16, 150, 196, 2.2);
-    rays($('rays-b') as unknown as SVGGElement, 28, 110, 160, 1.2);
+    plankton(this.raysA, 22, 132, 192, 3);
+    plankton($('rays-b') as unknown as SVGGElement, 34, 100, 150, 1.8);
+    // The stalk sways via SMIL; stop it for people who asked for less motion.
+    const svg = $('lure-svg') as unknown as SVGSVGElement;
+    if (prefersReducedMotion()) svg.pauseAnimations();
   }
 
   starCenter(): { x: number; y: number } {
@@ -139,7 +127,7 @@ export class Stage {
     if (!res) {
       sound.denied();
       replay(this.star, 'shake');
-      fx.float(x, y - 20, 'Your hands are bound', { size: 15, color: '#e07a5f' });
+      fx.float(x, y - 20, 'The water is too still', { size: 15, color: '#ff8f7c' });
       return;
     }
     const reduced = prefersReducedMotion();
@@ -148,8 +136,8 @@ export class Stage {
         [{ transform: 'scale(1)' }, { transform: `scale(${res.crit ? 0.86 : 0.93})`, offset: 0.25 }, { transform: 'scale(1.025)', offset: 0.65 }, { transform: 'scale(1)' }],
         { duration: res.crit ? 380 : 260, easing: 'cubic-bezier(.3,.7,.4,1)' },
       );
-      this.raysA.animate([{ opacity: 1, scale: '1' }, { opacity: 1, scale: res.crit ? '1.18' : '1.06', offset: 0.3 }, { opacity: 1, scale: '1' }], {
-        duration: 420,
+      this.raysA.animate([{ scale: '1' }, { scale: res.crit ? '1.16' : '1.05', offset: 0.3 }, { scale: '1' }], {
+        duration: 460,
         easing: 'ease-out',
       });
     }
@@ -157,17 +145,20 @@ export class Stage {
     sound.click(combo, res.crit);
     if (this.haptics) navigator.vibrate?.(res.crit ? [12, 30, 12] : 6);
 
-    fx.burst(x, y, res.crit ? 34 : 9, { speed: res.crit ? 5.5 : 3, size: res.crit ? 3 : 2.2 });
+    // A puff of bubbles and a few glowing motes from the tap point, plus a ripple.
+    fx.bubbles(x, y, res.crit ? 14 : 4);
+    fx.burst(x, y, res.crit ? 26 : 7, { speed: res.crit ? 5 : 2.6, size: res.crit ? 3 : 2.2 });
+    fx.ring(x, y, res.crit ? 90 : 46, `rgba(${fx.rgb},0.55)`, 1.5, res.crit ? 40 : 26);
     if (res.crit) {
       const c = this.starCenter();
-      fx.ring(c.x, c.y, 220, 'rgba(255,236,190,0.9)', 3, 40);
-      fx.float(x, y - 34, `✦ +${fmt(res.amount)}`, { size: 30, color: '#ffd77a', weight: 700, life: 80 });
+      fx.ring(c.x, c.y, 230, 'rgba(255,214,140,0.85)', 3, 44);
+      fx.float(x, y - 34, `Lucky! +${fmt(res.amount)}`, { size: 28, color: '#ffcf6e', weight: 800, life: 80 });
     } else {
       fx.float(x, y - 24, `+${fmt(res.amount)}`, { size: 17 + Math.min(8, combo / 15) });
     }
     if (res.wish > 0) {
-      fx.float(x, y - 64, `Wish! +${fmt(res.wish)}`, { size: 18, color: '#9ed8ea', weight: 700, life: 90 });
-      fx.burst(x, y, 20, { hue: 195, speed: 4 });
+      fx.float(x, y - 64, `Bottle! +${fmt(res.wish)}`, { size: 18, color: '#c9b8ff', weight: 800, life: 90 });
+      fx.bubbles(x, y, 12);
     }
   }
 
@@ -177,7 +168,7 @@ export class Stage {
     const fromLeft = Math.random() < 0.5;
     const w = innerWidth;
     const hgt = innerHeight;
-    const el = h('button', { class: 'comet', type: 'button', 'aria-label': 'Catch the comet' }) as HTMLButtonElement;
+    const el = h('button', { class: `comet${fromLeft ? ' flip' : ''}`, type: 'button', 'aria-label': 'Catch the glimmerfish' }, ic('clownfish')) as HTMLButtonElement;
     const y0 = hgt * (0.12 + Math.random() * 0.5);
     const c: CometSprite = {
       el,
@@ -226,7 +217,7 @@ export class Stage {
       c.el.style.transform = `translate(${c.x}px, ${c.y}px)`;
       c.hist.push({ x: c.x, y: c.y });
       if (c.hist.length > 28) c.hist.shift();
-      if (Math.random() < 0.25) fx.trail(c.x, c.y);
+      if (Math.random() < 0.18) fx.bubbles(c.x, c.y, 1, 0.6);
       if (auto && now - c.born > 1800 && c.x > 40 && c.x < innerWidth - 40) this.catchComet(c);
     }
     fx.tails = this.comets.map((c) => c.hist);
@@ -241,29 +232,30 @@ export class Stage {
     c.el.remove();
     sound.cometCatch();
     if (this.haptics) navigator.vibrate?.([10, 40, 10]);
-    fx.burst(c.x, c.y, 46, { speed: 6, size: 3 });
-    fx.ring(c.x, c.y, 140, 'rgba(255,240,200,0.9)', 2.5);
+    fx.burst(c.x, c.y, 40, { speed: 6, size: 3 });
+    fx.bubbles(c.x, c.y, 18);
+    fx.ring(c.x, c.y, 140, `rgba(${fx.rgb},0.8)`, 2.5);
     if (r.kind === 'starfall') {
-      fx.float(c.x, c.y - 10, `Starfall  +${fmt(r.amount)}`, { size: 22, color: '#ffd77a', weight: 700, life: 100 });
+      fx.float(c.x, c.y - 10, `It dropped +${fmt(r.amount)}`, { size: 22, color: '#ffcf6e', weight: 800, life: 100 });
     } else {
       const info = BUFF_INFO[r.kind];
       const detail =
         r.kind === 'frenzy'
           ? `Production ×${fmt(this.game.buffMult('frenzy'))}`
           : r.kind === 'clickstorm'
-            ? `Clicks ×${fmt(this.game.buffMult('clickstorm'))}`
-            : 'Combo held at max';
-      fx.float(c.x, c.y - 10, `${info.name}!`, { size: 24, color: '#ffd77a', weight: 700, life: 100 });
-      toast({ icon: info.icon, kicker: 'Comet caught', title: info.name, body: `${detail} for ${fmtTime(r.duration)}` });
+            ? `Taps ×${fmt(this.game.buffMult('clickstorm'))}`
+            : 'Streak held at max';
+      fx.float(c.x, c.y - 10, `${info.name}!`, { size: 24, color: '#ffcf6e', weight: 800, life: 100 });
+      toast({ icon: info.icon, kicker: 'Glimmerfish caught', title: info.name, body: `${detail} for ${fmtTime(r.duration)}` });
     }
   }
 
   /* ------------------------------------------------------------ events */
   onEvent(e: EventDef): void {
     sound.event(e.tone === 'good');
-    toast({ icon: e.icon, kicker: 'Cosmic event', title: e.name, body: e.desc, tone: 'good', ms: 6000 });
+    toast({ icon: e.icon, kicker: 'Sea event', title: e.name, body: e.desc, tone: 'good', ms: 6000 });
     const c = this.starCenter();
-    fx.ring(c.x, c.y, Math.max(innerWidth, innerHeight), 'rgba(255,230,180,0.35)', 2, 70);
+    fx.ring(c.x, c.y, Math.max(innerWidth, innerHeight), `rgba(${fx.rgb},0.3)`, 2, 70);
     replay(this.eventBanner, 'enter');
   }
 
@@ -320,12 +312,12 @@ export class Stage {
           const m = this.game.mods;
           const what =
             b.id === 'frenzy'
-              ? `All production ×${fmt(this.game.buffMult('frenzy'))}.`
+              ? `Everything produces ×${fmt(this.game.buffMult('frenzy'))}.`
               : b.id === 'clickstorm'
-                ? `Click power ×${fmt(this.game.buffMult('clickstorm'))}.`
-                : `Combo locked at its cap (${this.game.comboCap()}).`;
+                ? `Taps give ×${fmt(this.game.buffMult('clickstorm'))}.`
+                : `Your streak stays at its cap (${this.game.comboCap()}).`;
           void m;
-          return `<div class="tip-kicker">Comet buff</div><h4>${info.name}</h4><p>${what}</p>`;
+          return `<div class="tip-kicker">Glimmerfish boost</div><h4>${info.name}</h4><p>${what}</p>`;
         });
         this.buffsEl.append(li);
         this.buffEls.set(b.id, li);
@@ -360,9 +352,9 @@ export class Stage {
     if (def.pulse) this.stageEl.style.setProperty('--pulse', ((g.eventProdMult() - 1) / (def.pulse - 1)).toFixed(3));
     if (def.id === 'meteor' && !prefersReducedMotion()) {
       this.meteorAcc += dt;
-      while (this.meteorAcc > 0.35) {
-        this.meteorAcc -= 0.35 * (0.5 + Math.random());
-        fx.streak(Math.random() * innerWidth * 1.3, -20 + Math.random() * innerHeight * 0.3);
+      while (this.meteorAcc > 0.08) {
+        this.meteorAcc -= 0.08;
+        fx.mote(Math.random() * innerWidth, innerHeight * (0.2 + Math.random() * 0.8));
       }
     }
   }
@@ -376,23 +368,20 @@ export class Stage {
     $('trial-banner-ic').innerHTML = ic(t.icon);
     setText(
       $('trial-banner-title'),
-      done ? `${t.name} complete! Go Supernova to claim your freedom.` : `Trial: ${t.name} · reach ${fmt(t.goal)} stardust`,
+      done ? `${t.name} cleared. Descend whenever you like.` : `${t.name}: reach ${fmt(t.goal)} lumen`,
     );
     setWidth($('trial-banner-bar'), done ? 1 : Math.log10(s.runEarned + 1) / Math.log10(t.goal));
   }
 
-  /** Supernova: flash, quake, shockwave and particle storm from the star. */
+  /** Descent: the water darkens from above, the lure flares, and a column of bubbles rushes up. */
   supernova(): void {
     const c = this.starCenter();
-    const flash = $('flash');
-    flash.style.setProperty('--fx', `${c.x}px`);
-    flash.style.setProperty('--fy', `${c.y}px`);
-    replay(flash, 'go');
+    replay($('flash'), 'go');
     if (!prefersReducedMotion()) replay($('app'), 'quake');
-    fx.ring(c.x, c.y, Math.hypot(innerWidth, innerHeight), 'rgba(255,240,210,0.95)', 6, 70);
-    fx.ring(c.x, c.y, Math.hypot(innerWidth, innerHeight) * 0.6, 'rgba(158,216,234,0.8)', 3, 90);
-    fx.burst(c.x, c.y, 220, { speed: 14, size: 3.5, grav: 0.02 });
-    fx.burst(c.x, c.y, 80, { speed: 8, size: 2.5, hue: 195 });
+    fx.ring(c.x, c.y, Math.hypot(innerWidth, innerHeight), `rgba(${fx.rgb},0.7)`, 5, 80);
+    fx.ring(c.x, c.y, Math.hypot(innerWidth, innerHeight) * 0.5, 'rgba(201,184,255,0.7)', 3, 90);
+    fx.burst(c.x, c.y, 120, { speed: 10, size: 3, grav: -0.03 });
+    for (let i = 0; i < 6; i++) setTimeout(() => fx.bubbles(c.x + (Math.random() - 0.5) * 220, c.y + 120, 22, 2.2), i * 90);
     this.shown = 0;
     for (const cm of this.comets) cm.el.remove();
     this.comets = [];

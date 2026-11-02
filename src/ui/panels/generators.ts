@@ -22,8 +22,8 @@ interface Row {
 
 export class GeneratorsPanel implements Panel {
   id = 'gens';
-  label = 'Machines';
-  icon = 'gears';
+  label = 'Harvest';
+  icon = 'fishing-net';
   el = h('div', { class: 'view' });
   private rows: Row[] = [];
   private seg: HTMLElement;
@@ -31,7 +31,7 @@ export class GeneratorsPanel implements Panel {
 
   constructor(private game: Game) {
     const head = h('div', { class: 'view-head' });
-    head.innerHTML = `<div><h2 class="view-title">Machines</h2><div class="view-sub"></div></div><div class="spacer"></div>`;
+    head.innerHTML = `<div><h2 class="view-title">Harvesters</h2><div class="view-sub"></div></div><div class="spacer"></div>`;
     this.sub = head.querySelector('.view-sub')!;
     this.seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Buy amount' });
     for (const amt of [1, 10, 100, 'max'] as BuyAmount[]) {
@@ -124,12 +124,12 @@ export class GeneratorsPanel implements Panel {
     const g = this.game;
     const def = GENERATORS[i];
     const owned = g.s.gens[i];
-    if (this.isMystery(i)) return `<h4>Unknown machine</h4><p>Keep gathering stardust to reveal it.</p>`;
+    if (this.isMystery(i)) return `<h4>Something in the dark</h4><p>Gather a bit more lumen and you'll see what it is.</p>`;
     const each = owned > 0 ? g.perGen[i] / owned : def.baseProd * g.mods.genMult[i] * g.globalMult;
     const nextTier = TIER_THRESHOLDS.find((t) => t > owned);
-    return `<div class="tip-kicker">Machine ${i + 1}</div><h4>${def.name}</h4><p><i>${def.flavor}</i></p>
+    return `<div class="tip-kicker">Harvester ${i + 1}</div><h4>${def.name}</h4><p><i>${def.flavor}</i></p>
       <div class="tip-meta"><span>Each: ${fmt(each)}/s</span><span>Total: ${fmt(g.perGen[i])}/s</span></div>
-      ${nextTier ? `<div class="tip-meta"><span>Next upgrade unlocks at</span><span>${nextTier} owned</span></div>` : ''}`;
+      ${nextTier ? `<div class="tip-meta"><span>Next workshop upgrade at</span><span>${nextTier} owned</span></div>` : ''}`;
   }
 
   private isMystery(i: number): boolean {
@@ -141,7 +141,7 @@ export class GeneratorsPanel implements Panel {
     const g = this.game;
     const s = g.s;
     const visible = this.visibleCount();
-    setText(this.sub, `${fmt(g.cps)} stardust per second`);
+    setText(this.sub, `${fmt(g.cps)} lumen a second`);
     for (let i = 0; i < this.rows.length; i++) {
       const row = this.rows[i];
       const shown = i < visible;
@@ -160,10 +160,10 @@ export class GeneratorsPanel implements Panel {
       setText(row.name, mystery ? '???' : def.name);
       setText(row.owned, fmtInt(s.gens[i]));
       const share = g.cps > 0 ? g.perGen[i] / g.cps : 0;
-      if (locked) setText(row.meta, 'Sealed by this trial');
-      else if (mystery) setText(row.meta, 'An unknown machine');
-      else if (s.gens[i] === 0) setText(row.meta, `Produces ${fmt(def.baseProd * g.mods.genMult[i] * g.globalMult)}/s each`);
-      else setText(row.meta, `${fmt(g.perGen[i])}/s · ${fmtPct(share)} of output`);
+      if (locked) setText(row.meta, 'Out of reach in this trench');
+      else if (mystery) setText(row.meta, 'Something moving in the dark');
+      else if (s.gens[i] === 0) setText(row.meta, `Makes ${fmt(def.baseProd * g.mods.genMult[i] * g.globalMult)}/s each`);
+      else setText(row.meta, `${fmt(g.perGen[i])}/s, ${fmtPct(share)} of the haul`);
       const amtLabel = s.settings.buyAmount === 'max' ? `×${fmtInt(n)} ` : n > 1 ? `×${n} ` : '';
       setText(row.cost, locked ? '—' : `${amtLabel}${fmt(cost)}`);
       const owned = s.gens[i];

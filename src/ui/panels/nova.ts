@@ -18,8 +18,8 @@ interface AutoRow {
 
 export class NovaPanel implements Panel {
   id = 'nova';
-  label = 'Supernova';
-  icon = 'bright-explosion';
+  label = 'Descent';
+  icon = 'anchor';
   el = h('div', { class: 'view' });
   private gain: HTMLElement;
   private btn: HTMLButtonElement;
@@ -33,8 +33,8 @@ export class NovaPanel implements Panel {
   constructor(private game: Game) {
     const hero = h('div', { class: 'nova-hero' });
     hero.innerHTML = `<div class="nova-gain">0</div>
-      <div class="nova-gain-label">Nova Shards waiting in your star</div>
-      <button class="btn btn-lg nova-btn" type="button">${ic('bright-explosion')} Go Supernova</button>
+      <div class="nova-gain-label">Black Pearls waiting further down</div>
+      <button class="btn btn-lg nova-btn" type="button">${ic('anchor')} Descend</button>
       <div class="nova-next"><span></span><div class="bar"><div class="bar-fill"></div></div></div>`;
     this.gain = hero.querySelector('.nova-gain')!;
     this.btn = hero.querySelector('button')!;
@@ -48,24 +48,24 @@ export class NovaPanel implements Panel {
       this.facts[key] = f.querySelector('.fact-v')!;
       facts.append(f);
     };
-    fact('shards', 'Unspent shards');
-    fact('total', 'Shards earned');
-    fact('bonus', 'Shard bonus');
-    fact('count', 'Supernovas');
-    fact('run', 'This run');
-    fact('fastest', 'Fastest run');
+    fact('shards', 'Pearls to spend');
+    fact('total', 'Pearls ever found');
+    fact('bonus', 'Pearl bonus');
+    fact('count', 'Current depth');
+    fact('run', 'This dive');
+    fact('fastest', 'Quickest dive');
 
     const explain = h(
       'p',
       { class: 'view-sub', style: 'margin-top:14px' },
-      'A Supernova resets your stardust, machines and upgrades. In return you keep every Nova Shard you earn: each one permanently boosts production, and you spend them on the Constellation. Shards scale with the stardust you gather in a run.',
+      'Descending starts a fresh dive: your lumen, harvesters and workshop upgrades stay behind. You bring back Black Pearls, which boost everything for good and grow the Reef. The more lumen you gather in a dive, the more pearls are waiting.',
     );
 
     const autoH = h('div', { class: 'section-h' }, 'Automation');
     const autoWrap = h('div');
     const s = game.s;
     const m = () => game.mods;
-    this.rebirthAt = h('input', { class: 'num-input', type: 'number', min: 1, step: 1, value: s.autobuy.rebirthAt, 'aria-label': 'Shard target' }) as HTMLInputElement;
+    this.rebirthAt = h('input', { class: 'num-input', type: 'number', min: 1, step: 1, value: s.autobuy.rebirthAt, 'aria-label': 'Pearl target' }) as HTMLInputElement;
     this.rebirthAt.addEventListener('change', () => {
       const v = Math.max(1, Math.floor(Number(this.rebirthAt.value) || 1));
       game.s.autobuy.rebirthAt = v;
@@ -85,14 +85,14 @@ export class NovaPanel implements Panel {
       autoWrap.append(row);
       this.autos.push({ row, sw, sub: row.querySelector('.auto-row-sub')!, unlocked, lockedText, onText });
     };
-    addAuto('robot-grab', 'Machine autobuyer', 'gens', () => m().autoGens, 'Learn Automated Foundry in the Constellation.', () => 'Buys the cheapest machine twice a second.');
-    addAuto('vintage-robot', 'Upgrade drone', 'upgrades', () => m().autoUpgrades, 'Learn Procurement Drone in the Constellation.', () => 'Buys every affordable upgrade, cheapest first.');
-    addAuto('recycle', 'Auto-Supernova', 'rebirth', () => m().autoRebirth, 'Learn Cycle Engine in the Constellation.', () => 'Goes Supernova once the pending shards reach your target.', this.rebirthAt);
+    addAuto('crab-claw', 'Mechanical crab', 'gens', () => m().autoGens, 'Grow Mechanical Crab on the Reef to unlock.', () => 'Builds the cheapest harvester twice a second.');
+    addAuto('diving-helmet', 'Diving bell clerk', 'upgrades', () => m().autoUpgrades, 'Grow Diving Bell Clerk on the Reef to unlock.', () => 'Buys every workshop upgrade you can afford, cheapest first.');
+    addAuto('anchor', 'Ballast winch', 'rebirth', () => m().autoRebirth, 'Grow Ballast Winch on the Reef to unlock.', () => 'Descends on its own once enough pearls are waiting.', this.rebirthAt);
 
-    const respecH = h('div', { class: 'section-h' }, 'Constellation');
-    this.respecBtn = h('button', { class: 'btn btn-ghost', type: 'button' }, `${ic('cycle')} Respec constellation`) as HTMLButtonElement;
+    const respecH = h('div', { class: 'section-h' }, 'The Reef');
+    this.respecBtn = h('button', { class: 'btn btn-ghost', type: 'button' }, `${ic('cycle')} Replant the Reef`) as HTMLButtonElement;
     this.respecBtn.addEventListener('click', () => this.respec());
-    const respecNote = h('p', { class: 'view-sub', style: 'margin-top:8px' }, 'Refunds every shard you spent. Costs you the current run (a Supernova without shards).');
+    const respecNote = h('p', { class: 'view-sub', style: 'margin-top:8px' }, 'Gives back every pearl you spent on the Reef. It costs you the current dive.');
 
     this.el.append(hero, facts, explain, autoH, autoWrap, respecH, this.respecBtn, respecNote);
   }
@@ -106,11 +106,11 @@ export class NovaPanel implements Panel {
     }
     if (g.s.settings.confirmRebirth) {
       const ok = await confirmDialog({
-        title: 'Go Supernova?',
-        icon: 'bright-explosion',
-        html: `<div class="dlg-hero"><div class="dlg-hero-v" style="color:var(--shard)">+${fmt(gain)}</div><p>Nova Shards</p></div>
-          <p>Your stardust, machines and ${g.mods.keepUpgrades ? 'machine ' : ''}upgrades will reset. Shards, constellation, achievements and trial rewards stay.</p>`,
-        confirm: 'Go Supernova',
+        title: 'Descend?',
+        icon: 'anchor',
+        html: `<div class="dlg-hero"><div class="dlg-hero-v" style="color:var(--pearl)">+${fmt(gain)}</div><p>Black Pearls</p></div>
+          <p>Your lumen, harvesters and ${g.mods.keepUpgrades ? 'harvester ' : ''}upgrades stay up here. Pearls, the Reef, your finds and trench rewards come with you.</p>`,
+        confirm: 'Descend'
       });
       if (!ok) return;
     }
@@ -124,10 +124,10 @@ export class NovaPanel implements Panel {
       return;
     }
     const ok = await confirmDialog({
-      title: 'Respec constellation?',
+      title: 'Replant the Reef?',
       icon: 'cycle',
-      html: `<p>You will get back <b>${fmt(spent)}</b> shards and every node will be forgotten. Your current run ends.</p>`,
-      confirm: 'Respec',
+      html: `<p>You get back <b>${fmt(spent)}</b> Black Pearls and the Reef starts over from one polyp. Your current dive ends.</p>`,
+      confirm: 'Replant',
       danger: true,
     });
     if (ok) this.game.respec();
@@ -141,15 +141,15 @@ export class NovaPanel implements Panel {
     this.btn.disabled = gain <= 0;
     toggle(this.btn, 'ready', gain > 0 && gain >= Math.max(1, s.shardsTotal * 0.5));
     const nextAt = g.nextShardAt();
-    if (gain <= 0) setText(this.next, `Reach ${fmt(1e9 / g.mods.shardMult ** (1 / g.mods.shardExp))} stardust this run for your first shard`);
-    else setText(this.next, `Next shard at ${fmt(nextAt)} stardust this run`);
+    if (gain <= 0) setText(this.next, `Gather ${fmt(1e9 / g.mods.shardMult ** (1 / g.mods.shardExp))} lumen in one dive to find your first pearl`);
+    else setText(this.next, `Next pearl at ${fmt(nextAt)} lumen this dive`);
     const prevAt = gain > 0 ? 1e9 * (gain / g.mods.shardMult) ** (1 / g.mods.shardExp) : 0;
     setWidth(this.nextBar, (s.runEarned - prevAt) / (nextAt - prevAt));
 
     setText(this.facts.shards, fmt(s.shards));
     setText(this.facts.total, fmt(s.shardsTotal));
     setText(this.facts.bonus, g.mods.noSkills ? 'Dormant' : `+${fmtPct(g.shardBonus())}`);
-    setText(this.facts.count, fmtInt(s.rebirths));
+    setText(this.facts.count, fmtInt(s.rebirths + 1));
     setText(this.facts.run, fmtTime(s.stats.runTime));
     setText(this.facts.fastest, Number.isFinite(s.stats.fastestRebirth) ? fmtTime(s.stats.fastestRebirth) : '—');
 

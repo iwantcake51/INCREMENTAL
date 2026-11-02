@@ -155,11 +155,11 @@ class SoundKit {
     const step = Math.min(14, Math.floor(combo / 3));
     const semi = PENTA[step % 5] + 12 * Math.floor(step / 5) - 12;
     const f = note(semi);
-    // soft body thump + glassy tink on the scale
-    this.tone({ freq: 150, to: 60, decay: 0.07, gain: 0.22, type: 'sine' });
-    this.tone({ freq: f, decay: 0.16, gain: 0.07, type: 'triangle', wet: 0.4 });
-    this.tone({ freq: f * 2, decay: 0.09, gain: 0.025, type: 'sine', detune: 6 });
-    this.noise({ decay: 0.025, gain: 0.05, freq: 5000, q: 0.7 });
+    // a water "bloop" (fast upward pitch sweep) under a glassy note on the scale
+    this.tone({ freq: 180 + Math.random() * 40, to: 520 + Math.random() * 120, decay: 0.06, gain: 0.13, type: 'sine' });
+    this.tone({ freq: f, decay: 0.2, gain: 0.07, type: 'triangle', wet: 0.5 });
+    this.tone({ freq: f * 2, decay: 0.1, gain: 0.022, type: 'sine', detune: 6, wet: 0.3 });
+    this.noise({ decay: 0.03, gain: 0.025, freq: 1400, q: 3 });
     if (crit) {
       this.tone({ freq: f * 1.5, decay: 0.5, gain: 0.08, type: 'sine', wet: 0.8, when: 0.02 });
       this.tone({ freq: f * 3, decay: 0.35, gain: 0.04, type: 'sine', wet: 0.8, when: 0.04 });
@@ -169,7 +169,8 @@ class SoundKit {
 
   buy(count = 1): void {
     if (!this.ready() || !this.allow(30)) return;
-    this.tone({ freq: 220, to: 330, decay: 0.08, gain: 0.12, type: 'triangle' });
+    // a muffled metal clunk, like a hatch closing, then a bright tick
+    this.tone({ freq: 190, to: 120, decay: 0.09, gain: 0.14, type: 'triangle' });
     this.tone({ freq: 880, decay: 0.18, gain: 0.05, type: 'sine', when: 0.03, wet: 0.5 });
     if (count > 1) this.tone({ freq: 1320, decay: 0.2, gain: 0.04, type: 'sine', when: 0.07, wet: 0.5 });
     this.noise({ decay: 0.04, gain: 0.06, freq: 1800, q: 1.5 });
@@ -203,8 +204,9 @@ class SoundKit {
 
   cometSpawn(): void {
     if (!this.ready()) return;
-    this.noise({ decay: 1.2, attack: 0.4, gain: 0.05, freq: 900, sweepTo: 5000, q: 4, wet: 0.8 });
-    this.tone({ freq: note(19), decay: 0.8, gain: 0.03, type: 'sine', when: 0.3, wet: 1 });
+    // little ascending bubble trill
+    [0, 1, 2, 3].forEach((i) => this.tone({ freq: 300 + i * 90, to: 700 + i * 120, decay: 0.05, gain: 0.04, type: 'sine', when: i * 0.07 }));
+    this.tone({ freq: note(19), decay: 0.8, gain: 0.025, type: 'sine', when: 0.3, wet: 1 });
   }
 
   cometCatch(): void {
@@ -213,18 +215,22 @@ class SoundKit {
     this.noise({ decay: 0.4, gain: 0.08, freq: 8000, q: 1.5, wet: 0.6 });
   }
 
+  /** A distant whale-like call, then a soft chord. */
   event(good: boolean): void {
     if (!this.ready()) return;
+    this.tone({ freq: 210, to: 140, attack: 0.35, decay: 1.6, gain: 0.07, type: 'sine', wet: 1 });
+    this.tone({ freq: 140, to: 260, attack: 0.3, decay: 1.2, gain: 0.05, type: 'sine', when: 1.1, wet: 1 });
     const chord = good ? [0, 4, 7, 11] : [0, 3, 7, 10];
-    chord.forEach((s, i) => this.tone({ freq: note(s - 12), attack: 0.15, decay: 1.4, gain: 0.05, type: 'triangle', when: i * 0.08, wet: 1 }));
-    this.noise({ decay: 1.2, attack: 0.3, gain: 0.04, freq: 400, sweepTo: 3000, q: 2, wet: 1 });
+    chord.forEach((s, i) => this.tone({ freq: note(s - 12), attack: 0.2, decay: 1.4, gain: 0.035, type: 'triangle', when: 0.4 + i * 0.09, wet: 1 }));
   }
 
+  /** Sinking: a pressure rumble, rushing water, then a sonar ping from far below. */
   rebirth(): void {
     if (!this.ready()) return;
-    this.tone({ freq: 55, to: 30, decay: 2.2, gain: 0.35, type: 'sine' });
-    this.noise({ decay: 2.4, attack: 0.01, gain: 0.25, freq: 3000, sweepTo: 120, q: 0.6, type: 'lowpass', wet: 1 });
-    [0, 7, 12, 16, 19, 24].forEach((s, i) => this.tone({ freq: note(s - 12), attack: 0.3, decay: 2.5, gain: 0.04, type: 'sine', when: 0.5 + i * 0.12, wet: 1 }));
+    this.tone({ freq: 70, to: 32, decay: 2.4, gain: 0.32, type: 'sine' });
+    this.noise({ decay: 2.2, attack: 0.05, gain: 0.22, freq: 1800, sweepTo: 90, q: 0.7, type: 'lowpass', wet: 1 });
+    this.tone({ freq: note(7), decay: 1.6, gain: 0.06, type: 'sine', when: 1.3, wet: 1 });
+    this.tone({ freq: note(7), decay: 1.2, gain: 0.025, type: 'sine', when: 2.1, wet: 1 });
   }
 
   tick(): void {

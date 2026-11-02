@@ -15,8 +15,8 @@ const BIG = new Set(['ignition', 'k_god', 'p_horizon', 'c_meteor', 'n_theory', '
 
 export class SkillsPanel implements Panel {
   id = 'skills';
-  label = 'Constellation';
-  icon = 'star-swirl';
+  label = 'The Reef';
+  icon = 'coral';
   el = h('div', { class: 'view view-skills' });
   private tree = h('div', { class: 'tree' });
   private canvas = h('div', { class: 'tree-canvas' });
@@ -36,8 +36,8 @@ export class SkillsPanel implements Panel {
 
   constructor(private game: Game) {
     const bar = h('div', { class: 'tree-bar' });
-    bar.innerHTML = `<h2 class="view-title">Constellation</h2>
-      <span class="tree-shards">${ic('crystal-cluster')} <span></span></span><span class="view-sub"></span><span class="spacer"></span>`;
+    bar.innerHTML = `<h2 class="view-title">The Reef</h2>
+      <span class="tree-shards">${ic('oyster-pearl')} <span></span></span><span class="view-sub"></span><span class="spacer"></span>`;
     this.shardsEl = bar.querySelector('.tree-shards span')!;
     this.noteEl = bar.querySelector('.view-sub')!;
     const center = h('button', { class: 'btn btn-ghost btn-sm', type: 'button' }, `${ic('compass')} Center`);
@@ -52,7 +52,7 @@ export class SkillsPanel implements Panel {
     zin.addEventListener('click', () => this.zoomAt(1.25));
     zout.addEventListener('click', () => this.zoomAt(0.8));
     zoom.append(zin, zout);
-    const legend = h('div', { class: 'tree-legend' }, 'Drag to pan · scroll or pinch to zoom · click a star twice to learn it');
+    const legend = h('div', { class: 'tree-legend' }, 'Drag to look around, scroll or pinch to zoom, tap a polyp twice to grow it');
     this.tree.append(zoom, legend);
     this.el.append(bar, this.tree, this.detail);
     this.bindPanZoom();
@@ -127,8 +127,8 @@ export class SkillsPanel implements Panel {
   private tipFor(s: SkillDef): string {
     const lvl = this.game.skillLevel(s.id);
     const cost = lvl < s.max ? skillCost(s, lvl) : 0;
-    return `<div class="tip-kicker">${BRANCH_LABEL[s.branch]} · ${lvl}/${s.max}</div><h4>${s.name}</h4><p>${s.desc}</p>
-      ${lvl < s.max ? `<div class="tip-meta"><span>Next level</span><span class="tip-cost ${this.game.s.shards >= cost ? 'ok' : ''}">${fmt(cost)} shards</span></div>` : '<div class="tip-meta"><span>Mastered</span></div>'}`;
+    return `<div class="tip-kicker">${BRANCH_LABEL[s.branch]}, ${lvl}/${s.max}</div><h4>${s.name}</h4><p>${s.desc}</p>
+      ${lvl < s.max ? `<div class="tip-meta"><span>Next level</span><span class="tip-cost ${this.game.s.shards >= cost ? 'ok' : ''}">${fmt(cost)} pearls</span></div>` : '<div class="tip-meta"><span>Fully grown</span></div>'}`;
   }
 
   /* ------------------------------------------------------------ actions */
@@ -283,14 +283,14 @@ export class SkillsPanel implements Panel {
     setHtml(
       this.detail,
       `<span class="gen-ic" style="--hue:${BRANCH_HUE[s.branch]}">${ic(s.icon)}</span>
-      <div class="td-name">${s.name}<span class="td-branch">${BRANCH_LABEL[s.branch]} · ${lvl}/${s.max}</span></div>
+      <div class="td-name">${s.name}<span class="td-branch">${BRANCH_LABEL[s.branch]}, ${lvl}/${s.max}</span></div>
       <div class="td-desc">${s.desc}</div>
-      <div class="td-fx">${lvl > 0 ? `Now: <b>${s.fx(lvl)}</b>` : ''}${!maxed ? `${lvl > 0 ? ' → ' : 'Learn: '}<b>${s.fx(lvl + 1)}</b>` : ' · Mastered'}${
-        !unlocked ? ` · Requires ${reqNames}` : ''
+      <div class="td-fx">${lvl > 0 ? `Now: <b>${s.fx(lvl)}</b>` : ''}${!maxed ? `${lvl > 0 ? ' → ' : 'Grows into: '}<b>${s.fx(lvl + 1)}</b>` : ', fully grown'}${
+        !unlocked ? `. Needs ${reqNames} first` : ''
       }</div>
       <div class="td-actions">
-        <button class="btn nova-btn" type="button" data-act="buy" ${can ? '' : 'disabled'}>${maxed ? 'Mastered' : `${ic('crystal-cluster')} ${fmt(cost)}`}</button>
-        ${s.max > 1 && !maxed ? `<button class="btn btn-ghost btn-sm" type="button" data-act="max" ${can ? '' : 'disabled'}>Learn max</button>` : ''}
+        <button class="btn nova-btn" type="button" data-act="buy" ${can ? '' : 'disabled'}>${maxed ? 'Fully grown' : `${ic('oyster-pearl')} ${fmt(cost)}`}</button>
+        ${s.max > 1 && !maxed ? `<button class="btn btn-ghost btn-sm" type="button" data-act="max" ${can ? '' : 'disabled'}>Grow max</button>` : ''}
       </div>`,
     );
     this.detail.querySelector('[data-act="buy"]')?.addEventListener('click', () => this.learn(s.id));
@@ -300,8 +300,8 @@ export class SkillsPanel implements Panel {
   update(): void {
     const g = this.game;
     const sk = g.s.skills;
-    setText(this.shardsEl, `${fmt(g.s.shards)} shards`);
-    setText(this.noteEl, g.mods.noSkills ? 'Dormant during Nova Drought' : '');
+    setText(this.shardsEl, `${fmt(g.s.shards)} black pearls`);
+    setText(this.noteEl, g.mods.noSkills ? 'Asleep during the Bleached Reef trench' : '');
     for (const s of SKILLS) {
       const node = this.nodes.get(s.id)!;
       const lvl = sk[s.id] ?? 0;

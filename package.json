@@ -1,9 +1,9 @@
 {
-  "name": "astral-forge",
+  "name": "lanterndeep",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Astral Forge — an incremental clicker web game with a constellation skill tree, supernova rebirths and trials.",
+  "description": "Lanterndeep: a bioluminescent deep-sea idle game.",
   "scripts": {
     "icons": "node tools/build-icons.mjs",
     "predev": "node tools/build-icons.mjs",
@@ -21,7 +21,7 @@
     "vitest": "^5.1.0"
   },
   "dependencies": {
-    "@fontsource-variable/fraunces": "^5.3.0",
-    "@fontsource-variable/instrument-sans": "^5.3.0"
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource/young-serif": "^5.3.0"
   }
 }

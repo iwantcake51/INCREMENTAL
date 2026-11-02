@@ -8,21 +8,21 @@ import type { Panel } from './panel';
 
 export class TrialsPanel implements Panel {
   id = 'trials';
-  label = 'Trials';
-  icon = 'crossed-swords';
+  label = 'Trenches';
+  icon = 'compass';
   el = h('div', { class: 'view' });
   private locked = h('div', { class: 'locked-card' });
   private list = h('div', { class: 'trial-list' });
   private rows = new Map<string, { el: HTMLElement; action: HTMLElement }>();
 
   constructor(private game: Game) {
-    this.locked.innerHTML = `${ic('padlock')}<h3>The Void is sealed</h3><p>Learn <b>Trials of the Void</b> in the Nova branch of your Constellation to unlock trials: restricted runs with permanent rewards.</p>`;
-    const head = h('div', { class: 'view-head' }, `<div><h2 class="view-title">Trials of the Void</h2><div class="view-sub">Starting a trial goes Supernova (you still earn shards). Reach the goal stardust within the run to claim its reward forever.</div></div>`);
+    this.locked.innerHTML = `${ic('compass')}<h3>No charts yet</h3><p>Grow <b>Trench Charts</b> in the Abyss branch of the Reef. Trenches are hard dives with strange rules, and each one you clear pays off for good.</p>`;
+    const head = h('div', { class: 'view-head' }, `<div><h2 class="view-title">The Trenches</h2><div class="view-sub">Entering a trench counts as a descent, so you still bring back pearls. Hit the lumen goal in that dive to keep its reward forever.</div></div>`);
     for (const t of TRIALS) {
       const el = h('div', { class: 'trial' });
       el.innerHTML = `<span class="gen-ic">${ic(t.icon)}</span>
         <div><div class="trial-name">${t.name}</div><div class="trial-rule">${t.rule}</div>
-        <div class="trial-reward">Goal ${fmt(t.goal)} stardust · Reward: <b>${t.reward}</b></div></div><div class="trial-action"></div>`;
+        <div class="trial-reward">Goal: ${fmt(t.goal)} lumen. Reward: <b>${t.reward}</b></div></div><div class="trial-action"></div>`;
       const action = el.querySelector<HTMLElement>('.trial-action')!;
       action.addEventListener('click', (e) => {
         if ((e.target as Element).closest('button')) void this.start(t.id);
@@ -39,11 +39,11 @@ export class TrialsPanel implements Panel {
     if (g.s.settings.confirmTrial) {
       const gain = g.shardGain();
       const ok = await confirmDialog({
-        title: `Enter ${t.name}?`,
+        title: `Dive into ${t.name}?`,
         icon: t.icon,
-        html: `<p><b>${t.rule}</b></p><p>Goal: ${fmt(t.goal)} stardust in one run. Reward: ${t.reward}.</p>
-          <p>Your current run ends with a Supernova${gain > 0 ? ` (+${fmt(gain)} shards)` : ''}.</p>`,
-        confirm: 'Begin trial',
+        html: `<p><b>${t.rule}</b></p><p>Goal: ${fmt(t.goal)} lumen in one dive. Reward: ${t.reward}.</p>
+          <p>Your current dive ends with a descent${gain > 0 ? ` (+${fmt(gain)} pearls)` : ''}.</p>`,
+        confirm: 'Dive in',
       });
       if (!ok) return;
     }
@@ -65,10 +65,10 @@ export class TrialsPanel implements Panel {
       setHtml(
         row.action,
         active
-          ? '<span class="view-sub">In progress</span>'
+          ? '<span class="view-sub">Down there now</span>'
           : done
             ? `<span style="color:var(--good);font-size:1.4rem">${ic('check-mark')}</span>`
-            : `<button class="btn btn-sm" type="button" ${g.s.trial ? 'disabled' : ''}>Begin</button>`,
+            : `<button class="btn btn-sm" type="button" ${g.s.trial ? 'disabled' : ''}>Dive</button>`,
       );
     }
   }

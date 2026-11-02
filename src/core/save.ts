@@ -6,8 +6,8 @@ import { ACH_MAP } from '../data/achievements';
 import { EVENT_MAP } from '../data/events';
 import { defaultSettings, defaultStats, newGame, SAVE_VERSION, type GameState } from './state';
 
-export const STORAGE_KEY = 'astral-forge-save';
-const EXPORT_PREFIX = 'AF1:';
+export const STORAGE_KEY = 'lanterndeep-save';
+const EXPORT_PREFIX = 'LD1:';
 
 type Json = Record<string, unknown>;
 
@@ -88,7 +88,7 @@ export function deserialize(text: string): GameState {
   const d = defaultSettings();
   s.settings = {
     notation: pick(se.notation, ['standard', 'scientific', 'engineering', 'letters'] as const, d.notation),
-    palette: pick(se.palette, ['brass', 'verdigris', 'rose', 'silver'] as const, d.palette),
+    palette: pick(se.palette, ['lumen', 'coral', 'amber', 'violet'] as const, d.palette),
     particles: bool(se.particles, d.particles),
     floatingText: bool(se.floatingText, d.floatingText),
     starfield: bool(se.starfield, d.starfield),

@@ -7,7 +7,7 @@ type Row = [string, () => string];
 
 export class StatsPanel implements Panel {
   id = 'stats';
-  label = 'Ledger';
+  label = 'Logbook';
   icon = 'scroll-unfurled';
   el = h('div', { class: 'view' });
   private cells: { td: HTMLElement; fn: () => string }[] = [];
@@ -16,44 +16,44 @@ export class StatsPanel implements Panel {
     const s = () => this.game.s;
     const g = () => this.game;
     const groups: [string, Row[]][] = [
-      ['This run', [
-        ['Stardust earned', () => fmt(s().runEarned)],
+      ['This dive', [
+        ['Lumen gathered', () => fmt(s().runEarned)],
         ['Time', () => fmtTime(s().stats.runTime)],
-        ['Clicks', () => fmtInt(s().stats.runClicks)],
-        ['Comets caught', () => fmtInt(s().stats.runComets)],
-        ['Machines owned', () => fmtInt(s().gens.reduce((a, b) => a + b, 0))],
-        ['Upgrades owned', () => fmtInt(s().upgrades.size)],
+        ['Taps', () => fmtInt(s().stats.runClicks)],
+        ['Glimmerfish caught', () => fmtInt(s().stats.runComets)],
+        ['Harvesters owned', () => fmtInt(s().gens.reduce((a, b) => a + b, 0))],
+        ['Upgrades fitted', () => fmtInt(s().upgrades.size)],
       ]],
       ['Right now', [
         ['Production', () => `${fmt(g().cps)}/s`],
-        ['Click power', () => fmt(g().clickValue())],
+        ['Lumen per tap', () => fmt(g().clickValue())],
         ['Global multiplier', () => `×${fmt(g().globalMult)}`],
-        ['Crit chance', () => fmtPct(g().critChance())],
-        ['Crit power', () => `×${fmt(g().mods.critMult)}`],
-        ['Combo cap', () => `${g().comboCap()} (×${(1 + g().comboCap() * g().mods.comboPer).toFixed(2)})`],
-        ['Offline efficiency', () => `${fmtPct(g().mods.offlineEff)} for up to ${g().mods.offlineCapH}h`],
+        ['Lucky-tap chance', () => fmtPct(g().critChance())],
+        ['Lucky-tap payout', () => `×${fmt(g().mods.critMult)}`],
+        ['Longest streak allowed', () => `${g().comboCap()} (×${(1 + g().comboCap() * g().mods.comboPer).toFixed(2)})`],
+        ['While away', () => `${fmtPct(g().mods.offlineEff)} for up to ${g().mods.offlineCapH}h`],
       ]],
       ['All time', [
-        ['Stardust earned', () => fmt(s().totalEarned)],
+        ['Lumen gathered', () => fmt(s().totalEarned)],
         ['Time played', () => fmtTime(s().stats.playTime)],
-        ['Clicks', () => fmtInt(s().stats.clicks)],
-        ['Stardust from clicks', () => fmt(s().stats.clickEarned)],
-        ['Critical clicks', () => fmtInt(s().stats.crits)],
-        ['Best combo', () => fmtInt(s().stats.bestCombo)],
-        ['Best click', () => fmt(s().stats.bestClick)],
+        ['Taps', () => fmtInt(s().stats.clicks)],
+        ['Lumen from tapping', () => fmt(s().stats.clickEarned)],
+        ['Lucky taps', () => fmtInt(s().stats.crits)],
+        ['Longest streak', () => fmtInt(s().stats.bestCombo)],
+        ['Best single tap', () => fmt(s().stats.bestClick)],
         ['Best production', () => `${fmt(s().stats.bestCps)}/s`],
-        ['Machines built', () => fmtInt(s().stats.gensBought)],
+        ['Harvesters built', () => fmtInt(s().stats.gensBought)],
         ['Upgrades bought', () => fmtInt(s().stats.upgradesBought)],
-        ['Comets caught', () => fmtInt(s().stats.comets)],
-        ['Cosmic events', () => fmtInt(s().stats.events)],
-        ['Supernovas', () => fmtInt(s().rebirths)],
-        ['Nova Shards earned', () => fmt(s().shardsTotal)],
-        ['Earned while away', () => fmt(s().stats.offlineEarned)],
-        ['Trials completed', () => `${s().trialsDone.size} / 8`],
-        ['Started', () => new Date(s().created).toLocaleDateString()],
+        ['Glimmerfish caught', () => fmtInt(s().stats.comets)],
+        ['Sea events', () => fmtInt(s().stats.events)],
+        ['Descents', () => fmtInt(s().rebirths)],
+        ['Black Pearls found', () => fmt(s().shardsTotal)],
+        ['Gathered while away', () => fmt(s().stats.offlineEarned)],
+        ['Trenches cleared', () => `${s().trialsDone.size} of 8`],
+        ['First dive', () => new Date(s().created).toLocaleDateString()],
       ]],
     ];
-    const head = h('div', { class: 'view-head' }, '<h2 class="view-title">Ledger</h2>');
+    const head = h('div', { class: 'view-head' }, '<h2 class="view-title">Logbook</h2>');
     this.el.append(head);
     for (const [title, rows] of groups) {
       const wrap = h('div', { class: 'stat-group' }, `<div class="section-h" style="margin-top:0">${title}</div>`);

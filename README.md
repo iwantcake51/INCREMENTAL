@@ -1,53 +1,56 @@
-# Astral Forge
+# Lanterndeep
 
-*Click the star. Forge a universe.*
+*Tap the lure. Light up the deep.*
 
-An incremental (clicker/idle) web game. You start by tapping a star for stardust and end up running a whole observatory of machines. Along the way you go supernova, chart a 66-node constellation skill tree and survive trials that bend the rules.
+An incremental (clicker/idle) web game set at the bottom of the sea. You tap the glowing lure of an enormous anglerfish to gather **lumen**, build a fleet of strange harvesters, and keep sinking deeper. Along the way you grow a 66-part reef of upgrades and dive into trenches that bend the rules.
 
 It runs entirely in the browser: no server, no tracking. Progress is saved locally.
 
 ## Features
 
-- **The star.** Every click has weight: the star squashes, sparks fly, and floating numbers rise. Each click sound is a note on a pentatonic scale that climbs as your combo grows, so fast clicking turns into a little melody. Critical clicks ring out with a shockwave.
-- **Combos and crits.** Keep a rhythm to fill the combo ring around the star. Crits and combo depth can be upgraded.
-- **12 machines**, from the humble Spark Catcher to the Big Bang Kiln. Buy ×1, ×10, ×100 or Max.
-- **170 upgrades.** Every machine has 10 tiers, plus synergies between machines and upgrades for clicks, crits, combos, comets and global production.
-- **Comets** streak across the sky. Catch one for a Starfall of stardust or a buff: Frenzy, Click Storm or Combo Lock.
-- **Cosmic events.** Every few minutes the sky changes the rules for a while:
-  - Meteor Shower (production ×3)
-  - Solar Eclipse (clicks ×10, production halved)
-  - Gravitational Lensing (everything 30% cheaper)
-  - Stellar Alignment (production and clicks ×2)
-  - Comet Swarm
-  - Stardust Surge (combo cap +100, combo never fades)
-  - Lucky Constellation (+25% crit chance)
-  - Coronal Burst (each click also grants 1s of production)
-  - Pulsar Beat (production swings between ×1 and ×6)
-  - Nebula Drift (production ×1.5 for three minutes)
-- **Supernova (rebirth).** Explode your star for Nova Shards. Shards boost production permanently and buy constellation nodes.
-- **The Constellation.** A pannable, zoomable skill tree with 66 nodes across Touch, Forge, Cosmos and Nova branches, plus Confluence links, a per-machine Attunement arc and the Singularity apex. It unlocks autobuyers, auto-supernova, offline gains, comet mastery and more. You can respec at any time.
-- **8 Trials.** Restricted runs (no clicking, no upgrades, inflation, entropy…) with permanent rewards.
-- **134 feats (achievements)**, including secret ones. Each gives +1% production.
-- **Ledger** with detailed statistics.
-- **Offline progress**, with a "welcome back" summary.
+- **The lure.** Each tap squashes the bulb, puffs out bubbles and sends a ripple through the water. Every tap sound is a soft "bloop" plus a note on a pentatonic scale that climbs as your streak grows, so steady tapping turns into a little tune. Lucky taps pay out big.
+- **Streaks and lucky taps.** Tap in rhythm to fill the ring around the lure. Both can be upgraded.
+- **12 harvesters**, from Plankton Nets and Shrimp Traps to Leviathan Ranches and the Kraken Heart. Buy ×1, ×10, ×100 or Max.
+- **The Workshop: 170 upgrades.** Every harvester has 10 tiers, plus pairings between harvesters and upgrades for taps, luck, streaks, glimmerfish and everything at once.
+- **Glimmerfish** swim past now and then. Catch one for a pile of lumen or a boost: Feeding Frenzy, Eel Shock or Steady Current.
+- **Sea events.** Every few minutes the sea changes the rules for a while:
+  - Plankton Bloom (production ×3)
+  - Black Tide (taps ×10, production halved)
+  - Salvage Rush (everything 30% cheaper)
+  - Whale Song (production and taps ×2)
+  - Glimmer Shoal (a burst of glimmerfish)
+  - Riptide (streak cap +100, streak never fades)
+  - Pearl Moon (+25% lucky-tap chance)
+  - Thermal Vent (each tap also grants 1s of production)
+  - Tidal Pulse (production swings between ×1 and ×6)
+  - Warm Current (production ×1.5 for three minutes)
+- **Descent (rebirth).** Sink deeper to start a fresh dive and bring back **Black Pearls**. Pearls boost production permanently and grow the Reef. The water gets darker and colder with every descent.
+- **The Reef.** A pannable, zoomable skill tree with 66 parts across Hands, Harvest, Currents and Abyss branches, plus Confluence links, a Kinship arc with one node per harvester, and the Sleeping Leviathan at the very bottom. It unlocks autobuyers, automatic descents, longer away time and glimmerfish tricks. You can replant it at any time.
+- **8 Trenches.** Hard dives (no tapping, no workshop, crushing prices, a slow leak…) with permanent rewards.
+- **134 finds (achievements)**, including secret ones. Each gives +1% production.
+- **Logbook** with detailed statistics, and **work while away** with a "welcome back" summary.
 - **Settings:**
   - number notation (standard, scientific, engineering, letters)
-  - four color palettes and interface size
-  - particles, floating numbers, animated sky and reduced-motion toggles
+  - four water colours and interface size
+  - particles, floating numbers, moving water and reduced-motion toggles
   - volume, mute and vibration
-  - confirmations, autosave interval and offline progress
+  - confirmations, autosave interval and away progress
   - save export/import (code or file) and hard reset
 - **Keyboard shortcuts.** `1`–`7` switch tabs, `B` cycles buy amount, `U` buys all upgrades, `M` mutes, `Ctrl+S` saves.
 - Works on phones: touch-friendly, long-press for details, haptics on supported devices.
 
+## Look
+
+Oxidized copper and enamel for the machinery, with hard printed shadows, riveted panels and paper-tag toasts. Glow is saved for living things: the lure, the fish and the plankton. The background is a canvas sea with swaying light shafts, drifting marine snow, kelp silhouettes and the odd column of bubbles from a far-off vent. Type is Young Serif for headings and numbers, and Bricolage Grotesque for everything else.
+
 ## Tech
 
 - [Vite 8](https://vite.dev) and **TypeScript 7** (native compiler). No UI framework: plain DOM with change-detected updates.
-- Fixed 20 Hz logic tick plus a `requestAnimationFrame` render loop. Text only updates when it changes, panels refresh only while visible, and the effects canvas sleeps when idle. Particles are pooled, and the sky is cached to an offscreen canvas and paused in background tabs.
+- Fixed 20 Hz logic tick plus a `requestAnimationFrame` render loop. Text only updates when it changes, panels refresh only while visible, and the effects canvas sleeps when idle. Particles are pooled, and the sea background is cached to an offscreen canvas and paused in background tabs.
 - Native `<dialog>` modals with `@starting-style` entry animations, an animated exit with a fallback, and light-dismiss with a fallback.
 - Sounds are synthesized with the Web Audio API (oscillators, filtered noise and a generated reverb). There are no audio files.
 - Save data is validated field by field on load and import, so broken or hand-edited saves fall back to sane defaults.
-- [Vitest](https://vitest.dev) tests cover number formatting, the economy, data integrity, saves, and a pacing simulation that plays the game for 16 simulated hours to check rebirth pacing stays sane.
+- [Vitest](https://vitest.dev) tests cover number formatting, the economy, data integrity, saves, and a pacing simulation that plays the game for 16 simulated hours to check descent pacing stays sane.
 
 ## Develop
 
@@ -75,4 +78,4 @@ GitHub Actions (`.github/workflows/ci.yml`) runs the tests and a build on every 
 ## Credits
 
 - Icons: [game-icons.net](https://game-icons.net) by Lorc, Delapouite and contributors, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). They are packaged through [`@iconify-json/game-icons`](https://www.npmjs.com/package/@iconify-json/game-icons) and recolored in-game.
-- Typefaces: [Fraunces](https://fonts.google.com/specimen/Fraunces) and [Instrument Sans](https://fonts.google.com/specimen/Instrument+Sans), via Fontsource, under the SIL Open Font License.
+- Typefaces: [Young Serif](https://fonts.google.com/specimen/Young+Serif) and [Bricolage Grotesque](https://fonts.google.com/specimen/Bricolage+Grotesque), via Fontsource, under the SIL Open Font License.

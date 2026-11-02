@@ -2,7 +2,7 @@ import type { Notation } from './format';
 import { GENERATORS } from '../data/generators';
 
 export type BuyAmount = 1 | 10 | 100 | 'max';
-export type Palette = 'brass' | 'verdigris' | 'rose' | 'silver';
+export type Palette = 'lumen' | 'coral' | 'amber' | 'violet';
 
 export interface Settings {
   notation: Notation;
@@ -85,7 +85,7 @@ export const SAVE_VERSION = 1;
 export function defaultSettings(): Settings {
   return {
     notation: 'standard',
-    palette: 'brass',
+    palette: 'lumen',
     particles: true,
     floatingText: true,
     starfield: true,

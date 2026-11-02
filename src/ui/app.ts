@@ -22,7 +22,7 @@ import { TrialsPanel } from './panels/trials';
 import { AchievementsPanel } from './panels/achievements';
 import { StatsPanel } from './panels/stats';
 
-const TAB_KEY = 'astral-forge-tab';
+const TAB_KEY = 'lanterndeep-tab';
 const TICK_MS = 50;
 
 export class App {
@@ -74,6 +74,7 @@ export class App {
     }
     this.game.recalc();
     this.stage.resetCounter();
+    this.syncDepth();
 
     setInterval(() => this.logic(), TICK_MS);
     requestAnimationFrame(this.frame);
@@ -166,7 +167,7 @@ export class App {
         tab.btn.hidden = !avail;
         if (avail && this.lastSlow > 0) {
           replay(tab.btn, 'bump');
-          toast({ icon: p.icon, kicker: 'New section', title: p.label, tone: 'good' });
+          toast({ icon: p.icon, kicker: 'Something new', title: p.label, tone: 'good' });
         }
       }
       toggle(tab.dot, 'on', avail && p.id !== this.active && (p.badge?.() ?? false));
@@ -225,8 +226,8 @@ export class App {
           const batch = pending;
           pending = [];
           sound.achievement();
-          if (batch.length <= 2) for (const x of batch) toast({ icon: x.icon, kicker: 'Feat unlocked', title: x.name, body: x.desc });
-          else toast({ icon: 'trophy-cup', kicker: `${batch.length} feats unlocked`, title: batch.map((x) => x.name).slice(0, 3).join(', ') + (batch.length > 3 ? '…' : ''), body: `+${batch.length}% production` });
+          if (batch.length <= 2) for (const x of batch) toast({ icon: x.icon, kicker: 'New find', title: x.name, body: x.desc });
+          else toast({ icon: 'triple-shells', kicker: `${batch.length} new finds`, title: batch.map((x) => x.name).slice(0, 3).join(', ') + (batch.length > 3 ? '…' : ''), body: `+${batch.length}% production` });
         });
       pending.push(a);
     });
@@ -235,12 +236,13 @@ export class App {
       if (twin) setTimeout(() => this.stage.spawnComet(), 700);
     });
     g.on('event', (e) => this.stage.onEvent(e));
-    g.on('eventEnd', (e) => toast({ icon: e.icon, kicker: 'Event over', title: `${e.name} has passed`, ms: 2600 }));
+    g.on('eventEnd', (e) => toast({ icon: e.icon, kicker: 'The sea settles', title: `${e.name} is over`, ms: 2600 }));
     g.on('rebirth', ({ shards }) => {
       sound.rebirth();
       this.stage.supernova();
       replay($('chip-shards'), 'bump');
-      if (shards > 0) toast({ icon: 'crystal-cluster', kicker: 'Supernova', title: `+${fmt(shards)} Nova Shards`, body: 'Spend them in the Constellation.', tone: 'shard' });
+      if (shards > 0) toast({ icon: 'oyster-pearl', kicker: `Depth ${this.game.s.rebirths + 1}`, title: `+${fmt(shards)} Black Pearls`, body: 'Spend them growing the Reef.', tone: 'shard' });
+      this.syncDepth();
       this.updateTabAvailability();
       this.save();
     });
@@ -249,7 +251,7 @@ export class App {
       sound.achievement();
       const c = this.stage.starCenter();
       fx.burst(c.x, c.y, 120, { speed: 9, size: 3 });
-      toast({ icon: t.icon, kicker: 'Trial conquered', title: t.name, body: `Reward: ${t.reward}`, tone: 'good', ms: 7000 });
+      toast({ icon: t.icon, kicker: 'Trench cleared', title: t.name, body: `Reward: ${t.reward}`, tone: 'good', ms: 7000 });
       this.save();
     });
     g.on('reset', () => this.onReset());
@@ -257,6 +259,7 @@ export class App {
 
   private onReset(): void {
     this.stage.resetCounter();
+    this.syncDepth();
     this.stage.haptics = this.game.s.settings.haptics;
     applySettings(this.game.s.settings);
     // Settings dialog mirrors state, so rebuild it after imports.
@@ -346,8 +349,16 @@ export class App {
 
     // Tab title shows your stash while you're away.
     setInterval(() => {
-      document.title = document.hidden ? `${fmt(g.s.stardust)} stardust · Astral Forge` : 'Astral Forge';
+      document.title = document.hidden ? `${fmt(g.s.stardust)} lumen · Lanterndeep` : 'Lanterndeep';
     }, 1000);
+  }
+
+  /** Depth tag in the top bar and darker water the deeper you go. */
+  private syncDepth(): void {
+    const d = this.game.s.rebirths;
+    $('depth-tag').hidden = d === 0;
+    setText($('depth-num'), String(d + 1));
+    sky.setDepth(d);
   }
 
   private placeSky(): void {

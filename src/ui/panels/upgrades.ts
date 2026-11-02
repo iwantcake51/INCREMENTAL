@@ -9,18 +9,18 @@ import { fx } from '../fx';
 import type { Panel } from './panel';
 
 const KIND_LABEL: Record<UpgradeKind, string> = {
-  gen: 'Machine upgrade',
-  click: 'Touch upgrade',
-  crit: 'Critical upgrade',
-  combo: 'Combo upgrade',
-  comet: 'Comet upgrade',
-  global: 'Cosmic upgrade',
+  gen: 'Harvester upgrade',
+  click: 'Lure upgrade',
+  crit: 'Luck upgrade',
+  combo: 'Streak upgrade',
+  comet: 'Glimmerfish upgrade',
+  global: 'Big upgrade',
   synergy: 'Synergy',
 };
 
 export class UpgradesPanel implements Panel {
   id = 'upgrades';
-  label = 'Upgrades';
+  label = 'Workshop';
   icon = 'upgrade';
   el = h('div', { class: 'view' });
   private grid = h('div', { class: 'upg-grid' });
@@ -36,7 +36,7 @@ export class UpgradesPanel implements Panel {
 
   constructor(private game: Game) {
     const head = h('div', { class: 'view-head' });
-    head.innerHTML = `<div><h2 class="view-title">Upgrades</h2><div class="view-sub"></div></div><div class="spacer"></div>`;
+    head.innerHTML = `<div><h2 class="view-title">Workshop</h2><div class="view-sub"></div></div><div class="spacer"></div>`;
     this.count = head.querySelector('.view-sub')!;
     this.buyAll = h('button', { class: 'btn btn-sm', type: 'button' }, `${ic('check-mark')} Buy all`) as HTMLButtonElement;
     this.buyAll.addEventListener('click', () => {
@@ -49,7 +49,7 @@ export class UpgradesPanel implements Panel {
       } else sound.denied();
     });
     head.append(this.buyAll);
-    this.ownedWrap.innerHTML = '<h3>Owned this run</h3>';
+    this.ownedWrap.innerHTML = '<h3>Fitted this dive</h3>';
     this.ownedWrap.append(this.ownedIcons);
     this.el.append(head, this.grid, this.empty, this.ownedWrap);
   }
@@ -58,7 +58,7 @@ export class UpgradesPanel implements Panel {
     const cost = this.game.upgradeCost(u);
     const ok = cost <= this.game.s.stardust;
     return `<div class="tip-kicker">${KIND_LABEL[u.kind]}</div><h4>${u.name}</h4><p>${u.desc}</p>
-      ${owned ? '<div class="tip-meta"><span>Owned</span></div>' : `<div class="tip-meta"><span>Cost</span><span class="tip-cost ${ok ? 'ok' : ''}">${fmt(cost)}</span></div>`}`;
+      ${owned ? '<div class="tip-meta"><span>Fitted</span></div>' : `<div class="tip-meta"><span>Cost</span><span class="tip-cost ${ok ? 'ok' : ''}">${fmt(cost)}</span></div>`}`;
   }
 
   private buy(u: UpgradeDef, tile: HTMLButtonElement): void {
@@ -139,10 +139,10 @@ export class UpgradesPanel implements Panel {
       if (tile) toggle(tile, 'can', can);
     }
     this.buyAll.disabled = affordable === 0;
-    setText(this.count, blocked ? 'Forbidden during Barren Sky' : `${this.shop.length} available · ${affordable} affordable`);
+    setText(this.count, blocked ? 'Closed during the Empty Workshop trench' : `${this.shop.length} on the shelf, ${affordable} you can afford`);
     const none = this.shop.length === 0;
     this.empty.hidden = !none;
-    if (none) this.empty.innerHTML = `<b>Nothing on the shelf yet</b>Build more machines and gather stardust — upgrades appear as you grow.`;
+    if (none) this.empty.innerHTML = `<b>The shelves are bare</b>Build harvesters and gather lumen. New upgrades turn up as you grow.`;
   }
 
   badge(): boolean {

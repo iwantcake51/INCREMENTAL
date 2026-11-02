@@ -30,76 +30,76 @@ const ladder = (
   steps.forEach(([n, name], i) => add({ id: `${prefix}${i}`, name, icon, desc: desc(n), check: (s, c) => value(s, c) >= n }));
 };
 
-ladder('earn', 'star-formation', [
-  [100, 'First Light'], [1e3, 'Glimmer'], [1e4, 'Twinkle'], [1e5, 'Shimmer'], [1e6, 'Millionaire Moth'],
-  [1e8, 'Constellation'], [1e10, 'Star Cluster'], [1e12, 'Trillion Sparks'], [1e15, 'Quadrillion Queen'],
-  [1e18, 'Nebular'], [1e21, 'Galactic'], [1e24, 'Supercluster'], [1e30, 'Cosmic Web'], [1e36, 'Observable Universe'],
-  [1e45, 'Beyond Counting'], [1e60, 'Multiversal'], [1e80, 'Every Atom'], [1e100, 'Googol'],
-], (n) => `Earn ${fmt(n)} Stardust in total.`, (s) => s.totalEarned);
+ladder('earn', 'water-drop', [
+  [100, 'A Faint Glow'], [1e3, 'Night Light'], [1e4, 'Lamp Oil'], [1e5, 'Bucket of Light'], [1e6, 'A Million Motes'],
+  [1e8, 'Lit Cabin'], [1e10, 'Harbour Lights'], [1e12, 'Glowing Tide'], [1e15, 'Bright Reef'],
+  [1e18, 'Lantern Sea'], [1e21, 'No More Night'], [1e24, 'Visible From Space'], [1e30, 'Every Ocean'], [1e36, 'Every World\'s Ocean'],
+  [1e45, 'Past Counting'], [1e60, 'Drowned in Light'], [1e80, 'One Lumen per Atom'], [1e100, 'Googol, Glowing'],
+], (n) => `Gather ${fmt(n)} lumen in total.`, (s) => s.totalEarned);
 
-ladder('cps', 'rolling-energy', [
-  [1, 'Trickle'], [10, 'Stream'], [100, 'River'], [1e3, 'Waterfall'], [1e5, 'Flood'], [1e7, 'Tsunami'],
-  [1e10, 'Torrent of Light'], [1e15, 'Starstorm'], [1e20, 'Supernova Wind'], [1e30, 'Big Bang Engine'],
-], (n) => `Produce ${fmt(n)} Stardust per second.`, (_s, c) => c.cps);
+ladder('cps', 'waves', [
+  [1, 'Trickle'], [10, 'Drip Line'], [100, 'Steady Flow'], [1e3, 'Spring Tide'], [1e5, 'Undertow'], [1e7, 'Rogue Wave'],
+  [1e10, 'Maelstrom'], [1e15, 'Ocean Current'], [1e20, 'Planetary Tide'], [1e30, 'The Sea Breathes Light'],
+], (n) => `Produce ${fmt(n)} lumen a second.`, (_s, c) => c.cps);
 
-ladder('click', 'click', [
-  [1, 'Hello, Star'], [100, 'Tapper'], [1000, 'Clicker'], [5000, 'Clickaholic'], [25_000, 'Carpal Tunnel'], [100_000, 'The Hand'],
-], (n) => (n === 1 ? 'Click the star for the first time.' : `Click the star ${fmtInt(n)} times.`), (s) => s.stats.clicks);
+ladder('click', 'pointing', [
+  [1, 'Hello, Lure'], [100, 'Curious Fingers'], [1000, 'Regular Tapper'], [5000, 'Wrinkly Fingers'], [25_000, 'Webbed Hands'], [100_000, 'The Tapper of the Deep'],
+], (n) => (n === 1 ? 'Tap the lure for the first time.' : `Tap the lure ${fmtInt(n)} times.`), (s) => s.stats.clicks);
 
 ladder('clickearn', 'glowing-hands', [
-  [1e3, 'Handmade'], [1e6, 'Artisan Dust'], [1e9, 'Manual Labor'], [1e15, 'Fist of Light'], [1e24, 'Palm of Creation'],
-], (n) => `Earn ${fmt(n)} Stardust from clicking.`, (s) => s.stats.clickEarned);
+  [1e3, 'Handmade'], [1e6, 'Hand-Caught'], [1e9, 'Manual Labour'], [1e15, 'Strong Wrists'], [1e24, 'Palm of the Ocean'],
+], (n) => `Gather ${fmt(n)} lumen by tapping.`, (s) => s.stats.clickEarned);
 
-ladder('crit', 'on-target', [[1, 'Critical!'], [100, 'Sharpshooter'], [1000, 'Surgical Strikes']],
-  (n) => (n === 1 ? 'Land a critical click.' : `Land ${fmtInt(n)} critical clicks.`), (s) => s.stats.crits);
+ladder('crit', 'clover', [[1, 'Lucky!'], [100, 'Charmed'], [1000, 'Born Under a Pearl Moon']],
+  (n) => (n === 1 ? 'Land a lucky tap.' : `Land ${fmtInt(n)} lucky taps.`), (s) => s.stats.crits);
 
-ladder('combo', 'musical-notes', [[25, 'In the Groove'], [50, 'On Beat'], [100, 'Virtuoso'], [200, 'Maestro']],
-  (n) => `Build a combo of ${n} clicks.`, (s) => s.stats.bestCombo);
+ladder('combo', 'musical-notes', [[25, 'Humming Along'], [50, 'Shanty Time'], [100, 'Full Chorus'], [200, 'The Whole Crew Sings']],
+  (n) => `Keep a streak of ${n} taps going.`, (s) => s.stats.bestCombo);
 
 GENERATORS.forEach((g) => {
-  add({ id: `gen${g.id}a`, name: `First ${g.name}`, icon: g.icon, desc: `Own a ${g.name}.`, check: (s) => s.gens[g.id] >= 1 });
-  add({ id: `gen${g.id}b`, name: `${g.name} Empire`, icon: g.icon, desc: `Own 100 ${g.plural}.`, check: (s) => s.gens[g.id] >= 100 });
-  add({ id: `gen${g.id}c`, name: `${g.name} Dominion`, icon: g.icon, desc: `Own 250 ${g.plural}.`, check: (s) => s.gens[g.id] >= 250 });
+  add({ id: `gen${g.id}a`, name: `First ${g.name}`, icon: g.icon, desc: `Build a ${g.name}.`, check: (s) => s.gens[g.id] >= 1 });
+  add({ id: `gen${g.id}b`, name: `${g.name} Fleet`, icon: g.icon, desc: `Own 100 ${g.plural}.`, check: (s) => s.gens[g.id] >= 100 });
+  add({ id: `gen${g.id}c`, name: `${g.name} Armada`, icon: g.icon, desc: `Own 250 ${g.plural}.`, check: (s) => s.gens[g.id] >= 250 });
 });
 
 const totalGens = (s: GameState) => s.gens.reduce((a, b) => a + b, 0);
-ladder('gens', 'gears', [[100, 'Industrious'], [500, 'Factory Floor'], [1000, 'Megastructure'], [2500, 'Kardashev II']],
-  (n) => `Own ${fmtInt(n)} generators at once.`, totalGens);
+ladder('gens', 'gears', [[100, 'Busy Waters'], [500, 'Crowded Reef'], [1000, 'Undersea Town'], [2500, 'Drowned City']],
+  (n) => `Own ${fmtInt(n)} harvesters at once.`, totalGens);
 
-ladder('upg', 'upgrade', [[10, 'Tinker'], [50, 'Engineer'], [150, 'Architect'], [500, 'Grand Designer']],
+ladder('upg', 'upgrade', [[10, 'Tinkerer'], [50, 'Shipwright'], [150, 'Chief Engineer'], [500, 'Old Salt']],
   (n) => `Buy ${n} upgrades in total.`, (s) => s.stats.upgradesBought);
 
-ladder('comet', 'comet-spark', [[1, 'Make a Wish'], [10, 'Comet Chaser'], [50, 'Tail Puller'], [200, 'Comet Whisperer'], [1000, 'Orbit Keeper']],
-  (n) => (n === 1 ? 'Catch a comet.' : `Catch ${fmtInt(n)} comets.`), (s) => s.stats.comets);
+ladder('comet', 'fishing-lure', [[1, 'Got One!'], [10, 'Net Gains'], [50, 'Fish Whisperer'], [200, 'Shoal Keeper'], [1000, 'Glimmer King']],
+  (n) => (n === 1 ? 'Catch a glimmerfish.' : `Catch ${fmtInt(n)} glimmerfish.`), (s) => s.stats.comets);
 
-ladder('event', 'star-formation', [[1, 'Skywatcher'], [10, 'Storm Chaser'], [50, 'Weathered'], [200, 'Master of Seasons']],
-  (n) => `Witness ${n} cosmic event${n > 1 ? 's' : ''}.`, (s) => s.stats.events);
+ladder('event', 'high-tide', [[1, 'Weather Eye'], [10, 'Seasoned'], [50, 'Weathered'], [200, 'Knows Every Tide']],
+  (n) => (n === 1 ? 'Ride out a sea event.' : `Ride out ${n} sea events.`), (s) => s.stats.events);
 
-ladder('reb', 'bright-explosion', [[1, 'Supernova'], [5, 'Serial Exploder'], [10, 'Phoenix'], [25, 'Eternal Return'], [100, 'Ouroboros']],
-  (n) => `Go Supernova ${n} time${n > 1 ? 's' : ''}.`, (s) => s.rebirths);
+ladder('reb', 'anchor', [[1, 'Going Down'], [5, 'Deeper Still'], [10, 'Pressure Proof'], [25, 'Lost the Surface'], [100, 'Bottomless']],
+  (n) => (n === 1 ? 'Make your first descent.' : `Descend ${n} times.`), (s) => s.rebirths);
 
-ladder('shard', 'crystal-cluster', [[10, 'Shard Collector'], [100, 'Crystal Hoard'], [1000, 'Prism Vault'], [1e4, 'Gem of Ages'], [1e6, 'Shard Singularity']],
-  (n) => `Earn ${fmt(n)} Nova Shards in total.`, (s) => s.shardsTotal);
+ladder('shard', 'oyster-pearl', [[10, 'Pocket of Pearls'], [100, 'Pearl Purse'], [1000, 'Pearl Chest'], [1e4, 'Pearl Vault'], [1e6, 'Pearl Mountain']],
+  (n) => `Find ${fmt(n)} Black Pearls in total.`, (s) => s.shardsTotal);
 
 const skillCount = (s: GameState) => Object.values(s.skills).filter((l) => l > 0).length;
-ladder('skill', 'star-swirl', [[5, 'Stargazer'], [20, 'Astronomer'], [40, 'Cartographer'], [SKILLS.length, 'Whole Sky']],
-  (n) => (n === SKILLS.length ? 'Learn every node in the constellation.' : `Learn ${n} constellation nodes.`), skillCount);
+ladder('skill', 'coral', [[5, 'Polyps'], [20, 'Fringing Reef'], [40, 'Barrier Reef'], [SKILLS.length, 'The Whole Reef']],
+  (n) => (n === SKILLS.length ? 'Grow every part of the Reef.' : `Grow ${n} parts of the Reef.`), skillCount);
 
-TRIALS.forEach((t) => add({ id: `trial_${t.id}`, name: `Survivor: ${t.name}`, icon: t.icon, desc: `Complete the ${t.name} trial.`, check: (s) => s.trialsDone.has(t.id) }));
-add({ id: 'trial_all', name: 'Void Walker', icon: 'crossed-swords', desc: 'Complete every trial.', check: (s) => s.trialsDone.size >= TRIALS.length });
+TRIALS.forEach((t) => add({ id: `trial_${t.id}`, name: `Survived ${t.name}`, icon: t.icon, desc: `Clear the ${t.name} trench.`, check: (s) => s.trialsDone.has(t.id) }));
+add({ id: 'trial_all', name: 'Trench Walker', icon: 'diving-helmet', desc: 'Clear every trench.', check: (s) => s.trialsDone.size >= TRIALS.length });
 
 /* ---------- Secrets ---------- */
-add({ id: 'sec_title', name: 'Who Made This?', icon: 'scroll-unfurled', secret: true, desc: 'Click the game title.', check: (s) => s.flags.has('title') });
-add({ id: 'sec_palette', name: 'Interior Decorator', icon: 'magic-swirl', secret: true, desc: 'Change the color palette.', check: (s) => s.flags.has('palette') });
-add({ id: 'sec_hour', name: 'Night Owl', icon: 'night-sleep', secret: true, desc: 'Play for an hour.', check: (s) => s.stats.playTime >= 3600 });
-add({ id: 'sec_day', name: 'Dedicated', icon: 'sunrise', secret: true, desc: 'Play for 24 hours in total.', check: (s) => s.stats.playTime >= 86400 });
-add({ id: 'sec_speed', name: 'Speedrunner', icon: 'stopwatch', secret: true, desc: 'Go Supernova within 5 minutes of a run starting.', check: (s) => s.stats.fastestRebirth <= 300 });
-add({ id: 'sec_pacifist', name: 'Hands Off', icon: 'meditation', secret: true, desc: 'Earn 1M Stardust in a run without clicking.', check: (s) => s.stats.runClicks === 0 && s.runEarned >= 1e6 });
-add({ id: 'sec_buffs', name: 'Double Trouble', icon: 'perpendicular-rings', secret: true, desc: 'Have two comet buffs active at once.', check: (s) => s.buffs.length >= 2 });
-add({ id: 'sec_away', name: 'Sleepwalker', icon: 'sleepy', secret: true, desc: 'Return after at least an hour away.', check: (s) => s.flags.has('away') });
-add({ id: 'sec_import', name: 'Time Traveler', icon: 'sands-of-time', secret: true, desc: 'Import a save.', check: (s) => s.flags.has('import') });
-add({ id: 'sec_wish', name: 'Wish Granted', icon: 'falling-star', secret: true, desc: 'Trigger a Wishing Star.', check: (s) => s.flags.has('wish') });
-add({ id: 'sec_respec', name: 'Second Thoughts', icon: 'cycle', secret: true, desc: 'Respec your constellation.', check: (s) => s.flags.has('respec') });
-add({ id: 'sec_news', name: 'Well Informed', icon: 'scroll-unfurled', secret: true, desc: 'Click the news ticker.', check: (s) => s.flags.has('news') });
+add({ id: 'sec_title', name: 'Who Built This Thing?', icon: 'scroll-unfurled', secret: true, desc: 'Tap the game title.', check: (s) => s.flags.has('title') });
+add({ id: 'sec_palette', name: 'Fresh Paint', icon: 'water-splash', secret: true, desc: 'Change the water colour.', check: (s) => s.flags.has('palette') });
+add({ id: 'sec_hour', name: 'Night Watch', icon: 'night-sleep', secret: true, desc: 'Play for an hour.', check: (s) => s.stats.playTime >= 3600 });
+add({ id: 'sec_day', name: 'Lifer', icon: 'sunrise', secret: true, desc: 'Play for 24 hours in total.', check: (s) => s.stats.playTime >= 86400 });
+add({ id: 'sec_speed', name: 'Quick Dip', icon: 'stopwatch', secret: true, desc: 'Descend within 5 minutes of starting a dive.', check: (s) => s.stats.fastestRebirth <= 300 });
+add({ id: 'sec_pacifist', name: 'Hands in Pockets', icon: 'meditation', secret: true, desc: 'Gather 1M lumen in a dive without tapping.', check: (s) => s.stats.runClicks === 0 && s.runEarned >= 1e6 });
+add({ id: 'sec_buffs', name: 'Double Helping', icon: 'double-fish', secret: true, desc: 'Have two glimmerfish boosts going at once.', check: (s) => s.buffs.length >= 2 });
+add({ id: 'sec_away', name: 'Gone Fishing', icon: 'sleepy', secret: true, desc: 'Come back after at least an hour away.', check: (s) => s.flags.has('away') });
+add({ id: 'sec_import', name: 'Message in a Bottle', icon: 'water-bottle', secret: true, desc: 'Import a save.', check: (s) => s.flags.has('import') });
+add({ id: 'sec_wish', name: 'Washed Up', icon: 'water-bottle', secret: true, desc: 'Find a bottle from a tap.', check: (s) => s.flags.has('wish') });
+add({ id: 'sec_respec', name: 'Replanting', icon: 'cycle', secret: true, desc: 'Regrow your Reef from scratch.', check: (s) => s.flags.has('respec') });
+add({ id: 'sec_news', name: 'Tuned In', icon: 'sound-waves', secret: true, desc: 'Tap the radio.', check: (s) => s.flags.has('news') });
 
 export const ACH_MAP = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));

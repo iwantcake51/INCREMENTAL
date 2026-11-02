@@ -31,9 +31,9 @@ type Events = {
 type Handler<T> = (payload: T) => void;
 
 export const BUFF_INFO: Record<BuffId, { name: string; icon: string; base: number }> = {
-  frenzy: { name: 'Frenzy', icon: 'fire', base: 66 },
-  clickstorm: { name: 'Click Storm', icon: 'lightning-helix', base: 13 },
-  combolock: { name: 'Combo Lock', icon: 'musical-notes', base: 30 },
+  frenzy: { name: 'Feeding Frenzy', icon: 'angler-fish', base: 66 },
+  clickstorm: { name: 'Eel Shock', icon: 'lightning-helix', base: 13 },
+  combolock: { name: 'Steady Current', icon: 'waves', base: 30 },
 };
 
 const MAX = Number.MAX_VALUE;

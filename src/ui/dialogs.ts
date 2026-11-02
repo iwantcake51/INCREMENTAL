@@ -9,11 +9,11 @@ import { sound } from './audio';
 import { fx, sky } from './fx';
 import { toast } from './toast';
 
-const PALETTES: { id: Palette; name: string; color: string }[] = [
-  { id: 'brass', name: 'Brass', color: '#d6a548' },
-  { id: 'verdigris', name: 'Verdigris', color: '#6cc0a5' },
-  { id: 'rose', name: 'Rose quartz', color: '#e0909c' },
-  { id: 'silver', name: 'Moonsilver', color: '#b9c6dc' },
+const PALETTES: { id: Palette; name: string; color: string; hue: number }[] = [
+  { id: 'lumen', name: 'Lumen green', color: '#78f2cf', hue: 165 },
+  { id: 'coral', name: 'Coral pink', color: '#ff9eb0', hue: 350 },
+  { id: 'amber', name: 'Anglerfish amber', color: '#ffcf6e', hue: 40 },
+  { id: 'violet', name: 'Hadal violet', color: '#b9a4ff', hue: 255 },
 ];
 
 export function applySettings(st: Settings): void {
@@ -26,8 +26,10 @@ export function applySettings(st: Settings): void {
   fx.particles = st.particles;
   fx.floatingText = st.floatingText;
   sky.setEnabled(st.starfield);
-  sky.setAccent(getComputedStyle(root).getPropertyValue('--accent-rgb'));
-  fx.hue = { brass: 40, verdigris: 160, rose: 350, silver: 220 }[st.palette];
+  const rgb = getComputedStyle(root).getPropertyValue('--lumen-rgb').trim();
+  sky.setAccent(rgb);
+  fx.rgb = rgb.split(/\s+/).join(',');
+  fx.hue = PALETTES.find((p) => p.id === st.palette)?.hue ?? 165;
   sound.setVolume(st.volume, st.muted);
   document.getElementById('ticker')!.hidden = !st.newsTicker;
 }
@@ -97,7 +99,7 @@ export function buildSettings(game: Game, onReset: () => void): HTMLDialogElemen
     });
     sw.append(b);
   }
-  row(display, 'Palette', 'Accent color for the observatory', sw);
+  row(display, 'Water colour', 'What colour the deep glows', sw);
 
   const scale = h('input', { type: 'range', min: 0.85, max: 1.25, step: 0.05, value: st().uiScale }) as HTMLInputElement;
   scale.addEventListener('change', () => {
@@ -105,16 +107,16 @@ export function buildSettings(game: Game, onReset: () => void): HTMLDialogElemen
     changed();
   });
   row(display, 'Interface size', '', scale);
-  row(display, 'Particles', 'Sparks, bursts and comet tails', toggleCtl('particles'));
-  row(display, 'Floating numbers', 'Show gains rising from your clicks', toggleCtl('floatingText'));
-  row(display, 'Animated sky', 'Twinkling star chart behind everything', toggleCtl('starfield'));
+  row(display, 'Particles', 'Bubbles, glowing motes and ripples', toggleCtl('particles'));
+  row(display, 'Floating numbers', 'Show what each tap earns', toggleCtl('floatingText'));
+  row(display, 'Moving water', 'Light shafts and drifting marine snow', toggleCtl('starfield'));
   row(
     display,
     'Reduce motion',
     'Calmer animations',
     select<Settings['reducedMotion']>('reducedMotion', [['system', 'Follow system'], ['on', 'Reduce'], ['off', 'Full motion']], (v) => v as Settings['reducedMotion']),
   );
-  row(display, 'News ticker', '', toggleCtl('newsTicker'));
+  row(display, 'Radio', 'The chatter along the bottom', toggleCtl('newsTicker'));
 
   /* Sound */
   const audio = group('Sound & feel');
@@ -130,9 +132,9 @@ export function buildSettings(game: Game, onReset: () => void): HTMLDialogElemen
 
   /* Gameplay */
   const play = group('Gameplay');
-  row(play, 'Confirm Supernova', '', toggleCtl('confirmRebirth'));
-  row(play, 'Confirm trials', '', toggleCtl('confirmTrial'));
-  row(play, 'Offline progress', 'Earn stardust while the game is closed', toggleCtl('offlineProgress'));
+  row(play, 'Confirm descents', '', toggleCtl('confirmRebirth'));
+  row(play, 'Confirm trenches', '', toggleCtl('confirmTrial'));
+  row(play, 'Work while away', 'Harvesters keep going while the game is closed', toggleCtl('offlineProgress'));
   row(play, 'Autosave', '', select<number>('autosaveSeconds', [[10, 'Every 10 seconds'], [30, 'Every 30 seconds'], [60, 'Every minute'], [120, 'Every 2 minutes']], Number));
 
   /* Save */
@@ -160,7 +162,7 @@ export function buildSettings(game: Game, onReset: () => void): HTMLDialogElemen
   });
   mk('Download', 'cloud-download').addEventListener('click', () => {
     const blob = new Blob([exportSave(game.s)], { type: 'text/plain' });
-    const a = h('a', { href: URL.createObjectURL(blob), download: `astral-forge-${new Date().toISOString().slice(0, 10)}.txt` });
+    const a = h('a', { href: URL.createObjectURL(blob), download: `lanterndeep-${new Date().toISOString().slice(0, 10)}.txt` });
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
@@ -190,16 +192,16 @@ export function buildSettings(game: Game, onReset: () => void): HTMLDialogElemen
   });
   const reset = mk('Hard reset', 'trash-can', 'btn-danger');
   reset.addEventListener('click', async () => {
-    const first = await confirmDialog({ title: 'Erase everything?', icon: 'trash-can', html: '<p>This deletes all progress: stardust, shards, constellation, feats. Settings are kept.</p>', confirm: 'Continue', danger: true });
+    const first = await confirmDialog({ title: 'Erase everything?', icon: 'trash-can', html: '<p>This deletes everything: lumen, harvesters, Black Pearls, the Reef and your finds. Settings stay.</p>', confirm: 'Continue', danger: true });
     if (!first) return;
-    const second = await confirmDialog({ title: 'Really, truly?', icon: 'trash-can', html: '<p>There is no undo. Consider exporting your save first.</p>', confirm: 'Erase my universe', danger: true });
+    const second = await confirmDialog({ title: 'Really, truly?', icon: 'trash-can', html: '<p>There is no undo. Consider exporting your save first.</p>', confirm: 'Wipe it all', danger: true });
     if (!second) return;
     clearLocal();
     game.hardReset();
     saveLocal(game.s);
     void closeDialog(dialog);
     onReset();
-    toast({ icon: 'sunbeams', title: 'A new universe begins' });
+    toast({ icon: 'water-drop', title: 'Back at the surface. Fresh start.' });
   });
   saves.append(area, btns);
 
@@ -209,7 +211,7 @@ export function buildSettings(game: Game, onReset: () => void): HTMLDialogElemen
     h(
       'p',
       { class: 'credits' },
-      `Icons from <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a> by Lorc, Delapouite and contributors, licensed under <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>. Typefaces: Fraunces and Instrument Sans (SIL Open Font License). Sounds are synthesized live in your browser.`,
+      `Icons from <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a> by Lorc, Delapouite and contributors, licensed under <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>. Type: Young Serif and Bricolage Grotesque (SIL Open Font License). Every sound is made live in your browser.`,
     ),
   );
 
@@ -223,15 +225,16 @@ export function buildSettings(game: Game, onReset: () => void): HTMLDialogElemen
 export function buildHelp(): HTMLDialogElement {
   const { dialog, body, foot } = makeDialog('dlg-help', 'How to play', 'open-book');
   const steps: [string, number, string, string][] = [
-    ['sunbeams', 45, 'Click the star', 'Every click gathers stardust. Click quickly to build a combo for a bigger multiplier, and watch for critical clicks.'],
-    ['gears', 200, 'Build machines', 'Machines gather stardust for you every second. Each one has upgrades that unlock as you own more.'],
-    ['upgrade', 270, 'Buy upgrades', 'Upgrades multiply clicks, machines and everything else. Hover or long-press anything for details.'],
-    ['comet-spark', 195, 'Catch comets', 'Comets streak across the sky now and then. Catch one for a lump of stardust or a powerful buff.'],
-    ['star-formation', 330, 'Ride cosmic events', 'Every few minutes the sky changes: meteor showers, eclipses, alignments. Each one bends the rules for a while.'],
-    ['bright-explosion', 18, 'Go Supernova', 'Once you earn a billion stardust in a run, explode your star for Nova Shards. Shards boost production forever.'],
-    ['star-swirl', 150, 'Chart the constellation', 'Spend shards on a sprawling skill tree: automation, offline gains, comet mastery and more.'],
-    ['crossed-swords', 0, 'Face the trials', 'Late on, restricted runs grant permanent rewards for those who survive them.'],
+    ['pointing', 45, 'Tap the lure', 'Every tap gathers lumen. Tap in a steady rhythm to build a streak, and sometimes a tap gets lucky.'],
+    ['fishing-net', 170, 'Build harvesters', 'Nets, traps, jellyfish and stranger things gather lumen for you every second. Each one improves as you own more.'],
+    ['upgrade', 190, 'Visit the workshop', 'Upgrades multiply your taps, your harvesters, or everything at once. Hover, or press and hold on a phone, for details.'],
+    ['clownfish', 175, 'Catch glimmerfish', 'Now and then a glowing fish swims past. Tap it for a pile of lumen or a short boost.'],
+    ['high-tide', 200, 'Ride the sea events', 'Every few minutes the sea changes: plankton blooms, black tides, whale song. Each bends the rules for a while.'],
+    ['anchor', 270, 'Descend', 'Once a dive has gathered a billion lumen you can sink deeper. You start over, but bring back Black Pearls that boost everything for good.'],
+    ['coral', 150, 'Grow the Reef', 'Spend Black Pearls on the Reef, a big skill tree with autobuyers, longer away time, fish tricks and more.'],
+    ['compass', 10, 'Brave the trenches', 'Later on, hard dives with odd rules give permanent rewards if you make it through.'],
   ];
+
   body.innerHTML = `<div class="howto">${steps
     .map(([icon, hue, t, d]) => `<div class="howto-step"><span class="gen-ic" style="--hue:${hue}">${ic(icon)}</span><div><b>${t}</b><span>${d}</span></div></div>`)
     .join('')}</div>
@@ -241,8 +244,8 @@ export function buildHelp(): HTMLDialogElement {
       <span><kbd>U</kbd></span><span>Buy all affordable upgrades</span>
       <span><kbd>M</kbd></span><span>Mute or unmute</span>
       <span><kbd>Ctrl</kbd> + <kbd>S</kbd></span><span>Save now</span>
-      <span><kbd>Enter</kbd></span><span>Click the star when it has focus</span></div>`;
-  const go = h('button', { class: 'btn', type: 'button', autofocus: true }, 'Got it');
+      <span><kbd>Enter</kbd></span><span>Tap the lure when it has focus</span></div>`;
+  const go = h('button', { class: 'btn', type: 'button', autofocus: true }, 'Start diving');
   go.addEventListener('click', () => closeDialog(dialog));
   foot.append(go);
   return dialog;
@@ -250,13 +253,13 @@ export function buildHelp(): HTMLDialogElement {
 
 /* ============================================================== Offline */
 export function showOffline(r: { seconds: number; gain: number; capped: boolean }, capH: number, eff: number): void {
-  const { dialog, body, foot } = makeDialog('dlg-offline', 'Welcome back', 'night-sleep');
-  body.innerHTML = `<div class="dlg-hero"><p>While you were away for ${fmtTime(r.seconds)}, your machines gathered</p>
-    <div class="dlg-hero-v">+${fmt(r.gain)}</div><p>stardust</p></div>
-    <p class="view-sub" style="text-align:center">Offline machines work at ${Math.round(eff * 100)}% efficiency for up to ${capH} hours.${
-      r.capped ? ' You hit the cap — the Nova branch can extend it.' : ''
+  const { dialog, body, foot } = makeDialog('dlg-offline', 'Welcome back down', 'diving-helmet');
+  body.innerHTML = `<div class="dlg-hero"><p>You were gone ${fmtTime(r.seconds)}. Your harvesters kept at it and brought in</p>
+    <div class="dlg-hero-v">+${fmt(r.gain)}</div><p>lumen</p></div>
+    <p class="view-sub" style="text-align:center">While you're away they work at ${Math.round(eff * 100)}% for up to ${capH} hours.${
+      r.capped ? ' You went past that, so some was lost. The Abyss branch of the Reef can stretch it.' : ''
     }</p>`;
-  const ok = h('button', { class: 'btn', type: 'button', autofocus: true }, `${ic('sparkles')} Collect`);
+  const ok = h('button', { class: 'btn', type: 'button', autofocus: true }, `${ic('water-drop')} Collect`);
   ok.addEventListener('click', () => {
     sound.unlock();
     sound.cometCatch();
