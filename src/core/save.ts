@@ -59,11 +59,12 @@ export function deserialize(text: string): GameState {
   s.trialsDone = new Set(arr(raw.trialsDone).filter((id) => TRIAL_MAP.has(id)));
   if (Array.isArray(raw.buffs)) {
     s.buffs = (raw.buffs as Json[])
-      .filter((b) => b && ['frenzy', 'clickstorm', 'combolock'].includes(b.id as string))
+      .filter((b) => b && ['frenzy', 'clickstorm', 'combolock', 'flare'].includes(b.id as string))
       .map((b) => ({ id: b.id as 'frenzy', remaining: num(b.remaining, 0), duration: num(b.duration, 1, 1) }));
   }
   s.cometTimer = num(raw.cometTimer, 45);
-  s.eventTimer = num(raw.eventTimer, 120);
+  s.eventTimer = num(raw.eventTimer, 50);
+  s.surge = Math.min(1, num(raw.surge, 0));
   const ev = raw.event as Json | null;
   if (ev && typeof ev.id === 'string' && EVENT_MAP.has(ev.id)) {
     s.event = { id: ev.id, remaining: num(ev.remaining, 0), duration: num(ev.duration, 1, 1) };
@@ -95,6 +96,7 @@ export function deserialize(text: string): GameState {
     reducedMotion: pick(se.reducedMotion, ['system', 'on', 'off'] as const, d.reducedMotion),
     volume: Math.min(1, num(se.volume, d.volume)),
     muted: bool(se.muted, d.muted),
+    tapSounds: bool(se.tapSounds, d.tapSounds),
     haptics: bool(se.haptics, d.haptics),
     autosaveSeconds: pick(se.autosaveSeconds, [10, 30, 60, 120] as const, 30),
     offlineProgress: bool(se.offlineProgress, d.offlineProgress),
@@ -102,7 +104,7 @@ export function deserialize(text: string): GameState {
     confirmTrial: bool(se.confirmTrial, d.confirmTrial),
     newsTicker: bool(se.newsTicker, d.newsTicker),
     uiScale: Math.min(1.25, Math.max(0.85, num(se.uiScale, 1))),
-    buyAmount: pick(se.buyAmount, [1, 10, 100, 'max'] as const, 1),
+    buyAmount: pick(se.buyAmount, [1, 10, 100, 'next', 'max'] as const, 1),
   };
   return s;
 }

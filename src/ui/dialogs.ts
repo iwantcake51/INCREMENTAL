@@ -31,6 +31,7 @@ export function applySettings(st: Settings): void {
   fx.rgb = rgb.split(/\s+/).join(',');
   fx.hue = PALETTES.find((p) => p.id === st.palette)?.hue ?? 165;
   sound.setVolume(st.volume, st.muted);
+  sound.tapSounds = st.tapSounds;
   document.getElementById('ticker')!.hidden = !st.newsTicker;
 }
 
@@ -128,6 +129,7 @@ export function buildSettings(game: Game, onReset: () => void): HTMLDialogElemen
   vol.addEventListener('change', () => sound.click(12, false));
   row(audio, 'Volume', '', vol);
   row(audio, 'Mute', 'Shortcut: M', toggleCtl('muted'));
+  row(audio, 'Tap sounds', 'The little note on every tap', toggleCtl('tapSounds'));
   row(audio, 'Vibration', 'Haptic taps on supported phones', toggleCtl('haptics'));
 
   /* Gameplay */
@@ -226,11 +228,12 @@ export function buildHelp(): HTMLDialogElement {
   const { dialog, body, foot } = makeDialog('dlg-help', 'How to play', 'open-book');
   const steps: [string, number, string, string][] = [
     ['pointing', 45, 'Tap the lure', 'Every tap gathers lumen. Tap in a steady rhythm to build a streak, and sometimes a tap gets lucky.'],
+    ['sun-radiations', 48, 'Make it flare', 'Taps fill the gold ring around the lure. When it is full the lure flares: eight seconds of ×10 taps and ×3 production.'],
     ['fishing-net', 170, 'Build harvesters', 'Nets, traps, jellyfish and stranger things gather lumen for you every second. Each one improves as you own more.'],
     ['upgrade', 190, 'Visit the workshop', 'Upgrades multiply your taps, your harvesters, or everything at once. Hover, or press and hold on a phone, for details.'],
     ['clownfish', 175, 'Catch glimmerfish', 'Now and then a glowing fish swims past. Tap it for a pile of lumen or a short boost.'],
     ['high-tide', 200, 'Ride the sea events', 'Every few minutes the sea changes: plankton blooms, black tides, whale song. Each bends the rules for a while.'],
-    ['anchor', 270, 'Descend', 'Once a dive has gathered a billion lumen you can sink deeper. You start over, but bring back Black Pearls that boost everything for good.'],
+    ['anchor', 270, 'Descend', 'Once a dive has gathered a hundred million lumen you can sink deeper. You start over, but bring back Black Pearls that boost everything for good.'],
     ['coral', 150, 'Grow the Reef', 'Spend Black Pearls on the Reef, a big skill tree with autobuyers, longer away time, fish tricks and more.'],
     ['compass', 10, 'Brave the trenches', 'Later on, hard dives with odd rules give permanent rewards if you make it through.'],
   ];
@@ -240,7 +243,9 @@ export function buildHelp(): HTMLDialogElement {
     .join('')}</div>
     <div class="section-h">Shortcuts</div>
     <div class="keys"><span><kbd>1</kbd>–<kbd>7</kbd></span><span>Switch tabs</span>
-      <span><kbd>B</kbd></span><span>Cycle buy amount (×1, ×10, ×100, Max)</span>
+      <span><kbd>B</kbd></span><span>Cycle buy amount (×1, ×10, ×100, Next, Max)</span>
+      <span><kbd>Space</kbd></span><span>Tap the lure</span>
+      <span><kbd>X</kbd></span><span>Spend all: buy the cheapest harvesters until you run out</span>
       <span><kbd>U</kbd></span><span>Buy all affordable upgrades</span>
       <span><kbd>M</kbd></span><span>Mute or unmute</span>
       <span><kbd>Ctrl</kbd> + <kbd>S</kbd></span><span>Save now</span>

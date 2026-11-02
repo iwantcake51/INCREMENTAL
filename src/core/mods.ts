@@ -49,6 +49,17 @@ export interface Mods {
   resonance: number;
   wanderPer: number;
   synergy: { target: number; source: number; pct: number }[];
+  /** Per harvester: fraction of its output each tap also gives. */
+  tapFromGen: number[];
+  /** Per harvester: +output per one of itself owned. */
+  selfSyn: number[];
+  /** Per harvester: cost multiplier. */
+  genCostMult: number[];
+  /** Per harvester: +all production per one owned. */
+  globalPerGen: number[];
+  eventDuration: number;
+  flareFill: number;
+  flareBonus: number;
   // Trial restrictions
   noClick: boolean;
   noGenProd: boolean;
@@ -105,6 +116,13 @@ export function baseMods(): Mods {
     resonance: 0,
     wanderPer: 0,
     synergy: [],
+    tapFromGen: GENERATORS.map(() => 0),
+    selfSyn: GENERATORS.map(() => 0),
+    genCostMult: GENERATORS.map(() => 1),
+    globalPerGen: GENERATORS.map(() => 0),
+    eventDuration: 1,
+    flareFill: 1,
+    flareBonus: 0,
     noClick: false,
     noGenProd: false,
     noUpgrades: false,

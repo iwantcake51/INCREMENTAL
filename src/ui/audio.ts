@@ -29,8 +29,6 @@ class SoundKit {
   private noiseBuf!: AudioBuffer;
   private volume = 0.5;
   private muted = false;
-  private recent = 0;
-  private recentReset = 0;
 
   setVolume(volume: number, muted: boolean): void {
     this.volume = volume;
@@ -86,14 +84,30 @@ class SoundKit {
     return this.ctx;
   }
 
-  /** Simple voice limiter so frantic clicking never turns into mush. */
-  private allow(max = 22): boolean {
+  /**
+   * Smooth limiter for rapid sounds. Instead of a hard per-second cap (which made fast
+   * tapping go silent and then come back), it only enforces a tiny gap between voices
+   * and returns a gain factor that ducks gently as the tap rate climbs.
+   */
+  private rate = 0; // exponentially smoothed sounds per second
+  private lastAt = 0;
+  private duck(minGapMs = 22): number {
     const now = performance.now();
-    if (now - this.recentReset > 1000) {
-      this.recentReset = now;
-      this.recent = 0;
-    }
-    return ++this.recent <= max;
+    const dt = Math.max(1, now - this.lastAt);
+    if (dt < minGapMs) return 0;
+    this.lastAt = now;
+    this.rate = this.rate * Math.exp(-dt / 400) + 1000 / 400;
+    // ~1.0 up to 8 taps/s, easing down to ~0.45 around 30 taps/s
+    return Math.max(0.45, Math.min(1, 1.25 - this.rate / 32));
+  }
+
+  /** UI sounds (buys, ticks) get their own small gap so they never steal a tap's slot. */
+  private lastUi = 0;
+  private allow(): boolean {
+    const now = performance.now();
+    if (now - this.lastUi < 14) return false;
+    this.lastUi = now;
+    return true;
   }
 
   private tone(o: ToneOpts): void {
@@ -150,16 +164,20 @@ class SoundKit {
 
   /* ------------------------------------------------------------- sounds */
 
+  tapSounds = true;
+
   click(combo: number, crit: boolean): void {
-    if (!this.ready() || !this.allow()) return;
+    if (!this.ready() || !this.tapSounds) return;
+    const v = this.duck();
+    if (v <= 0) return;
     const step = Math.min(14, Math.floor(combo / 3));
     const semi = PENTA[step % 5] + 12 * Math.floor(step / 5) - 12;
     const f = note(semi);
     // a water "bloop" (fast upward pitch sweep) under a glassy note on the scale
-    this.tone({ freq: 180 + Math.random() * 40, to: 520 + Math.random() * 120, decay: 0.06, gain: 0.13, type: 'sine' });
-    this.tone({ freq: f, decay: 0.2, gain: 0.07, type: 'triangle', wet: 0.5 });
-    this.tone({ freq: f * 2, decay: 0.1, gain: 0.022, type: 'sine', detune: 6, wet: 0.3 });
-    this.noise({ decay: 0.03, gain: 0.025, freq: 1400, q: 3 });
+    this.tone({ freq: 180 + Math.random() * 40, to: 520 + Math.random() * 120, decay: 0.06, gain: 0.13 * v, type: 'sine' });
+    this.tone({ freq: f, decay: 0.2, gain: 0.07 * v, type: 'triangle', wet: 0.5 });
+    if (v > 0.7) this.tone({ freq: f * 2, decay: 0.1, gain: 0.022 * v, type: 'sine', detune: 6, wet: 0.3 });
+    if (v > 0.7) this.noise({ decay: 0.03, gain: 0.025, freq: 1400, q: 3 });
     if (crit) {
       this.tone({ freq: f * 1.5, decay: 0.5, gain: 0.08, type: 'sine', wet: 0.8, when: 0.02 });
       this.tone({ freq: f * 3, decay: 0.35, gain: 0.04, type: 'sine', wet: 0.8, when: 0.04 });
@@ -168,7 +186,7 @@ class SoundKit {
   }
 
   buy(count = 1): void {
-    if (!this.ready() || !this.allow(30)) return;
+    if (!this.ready() || !this.allow()) return;
     // a muffled metal clunk, like a hatch closing, then a bright tick
     this.tone({ freq: 190, to: 120, decay: 0.09, gain: 0.14, type: 'triangle' });
     this.tone({ freq: 880, decay: 0.18, gain: 0.05, type: 'sine', when: 0.03, wet: 0.5 });
@@ -231,6 +249,14 @@ class SoundKit {
     this.noise({ decay: 2.2, attack: 0.05, gain: 0.22, freq: 1800, sweepTo: 90, q: 0.7, type: 'lowpass', wet: 1 });
     this.tone({ freq: note(7), decay: 1.6, gain: 0.06, type: 'sine', when: 1.3, wet: 1 });
     this.tone({ freq: note(7), decay: 1.2, gain: 0.025, type: 'sine', when: 2.1, wet: 1 });
+  }
+
+  /** The lure flares: a rising rush into a bright major chord. */
+  flare(): void {
+    if (!this.ready()) return;
+    this.noise({ decay: 0.9, attack: 0.35, gain: 0.1, freq: 400, sweepTo: 6000, q: 1.2, wet: 0.8 });
+    this.tone({ freq: 110, to: 440, attack: 0.3, decay: 0.5, gain: 0.12, type: 'sawtooth', wet: 0.5 });
+    [0, 4, 7, 12, 16].forEach((s, i) => this.tone({ freq: note(s), attack: 0.02, decay: 1.2, gain: 0.06, type: 'triangle', when: 0.32 + i * 0.03, wet: 1 }));
   }
 
   tick(): void {

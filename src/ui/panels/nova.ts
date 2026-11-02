@@ -1,7 +1,7 @@
 import type { Game } from '../../core/game';
 import { fmt, fmtInt, fmtPct, fmtTime } from '../../core/format';
 import { totalSpent } from '../../data/skills';
-import { h, setText, setWidth, toggle } from '../dom';
+import { h, setText, setWidth, toggle, rollNumber } from '../dom';
 import { ic } from '../icons';
 import { confirmDialog } from '../modal';
 import { sound } from '../audio';
@@ -54,11 +54,12 @@ export class NovaPanel implements Panel {
     fact('count', 'Current depth');
     fact('run', 'This dive');
     fact('fastest', 'Quickest dive');
+    fact('pressure', 'Water pressure');
 
     const explain = h(
       'p',
       { class: 'view-sub', style: 'margin-top:14px' },
-      'Descending starts a fresh dive: your lumen, harvesters and workshop upgrades stay behind. You bring back Black Pearls, which boost everything for good and grow the Reef. The more lumen you gather in a dive, the more pearls are waiting.',
+      'Descending starts a fresh dive: your lumen, harvesters and workshop upgrades stay behind. You bring back Black Pearls, which boost everything for good and grow the Reef. The more lumen you gather in a dive, the more pearls are waiting. Each descent takes you deeper, where the pressure means pearls need more lumen.',
     );
 
     const autoH = h('div', { class: 'section-h' }, 'Automation');
@@ -137,20 +138,24 @@ export class NovaPanel implements Panel {
     const g = this.game;
     const s = g.s;
     const gain = g.shardGain();
-    setText(this.gain, `+${fmt(gain)}`);
+    rollNumber(this.gain, gain, (n) => `+${fmt(n)}`, { integer: gain < 1e6, speed: 6 });
     this.btn.disabled = gain <= 0;
     toggle(this.btn, 'ready', gain > 0 && gain >= Math.max(1, s.shardsTotal * 0.5));
     const nextAt = g.nextShardAt();
-    if (gain <= 0) setText(this.next, `Gather ${fmt(1e9 / g.mods.shardMult ** (1 / g.mods.shardExp))} lumen in one dive to find your first pearl`);
-    else setText(this.next, `Next pearl at ${fmt(nextAt)} lumen this dive`);
-    const prevAt = gain > 0 ? 1e9 * (gain / g.mods.shardMult) ** (1 / g.mods.shardExp) : 0;
+    if (gain <= 0) setText(this.next, `Gather ${fmt(g.pearlBase() / g.mods.shardMult ** (1 / g.mods.shardExp))} lumen in one dive to find a pearl`);
+    else {
+      const eta = g.cps > 0 ? (nextAt - s.runEarned) / g.cps : Infinity;
+      setText(this.next, `Next pearl at ${fmt(nextAt)} lumen this dive${Number.isFinite(eta) && eta > 0 ? `, about ${fmtTime(eta)} at this rate` : ''}`);
+    }
+    const prevAt = gain > 0 ? g.pearlBase() * (gain / g.mods.shardMult) ** (1 / g.mods.shardExp) : 0;
     setWidth(this.nextBar, (s.runEarned - prevAt) / (nextAt - prevAt));
 
-    setText(this.facts.shards, fmt(s.shards));
-    setText(this.facts.total, fmt(s.shardsTotal));
+    rollNumber(this.facts.shards, s.shards, fmt, { speed: 6 });
+    rollNumber(this.facts.total, s.shardsTotal, fmt, { speed: 6 });
     setText(this.facts.bonus, g.mods.noSkills ? 'Dormant' : `+${fmtPct(g.shardBonus())}`);
     setText(this.facts.count, fmtInt(s.rebirths + 1));
     setText(this.facts.run, fmtTime(s.stats.runTime));
+    setText(this.facts.pressure, `×${fmt(g.pressure())} lumen per pearl`);
     setText(this.facts.fastest, Number.isFinite(s.stats.fastestRebirth) ? fmtTime(s.stats.fastestRebirth) : '—');
 
     for (const a of this.autos) {

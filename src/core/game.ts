@@ -22,6 +22,7 @@ type Events = {
   rebirth: { shards: number };
   trialComplete: string;
   comet: { twin: boolean };
+  flare: void;
   event: EventDef;
   eventEnd: EventDef;
   purchase: { kind: 'gen' | 'upgrade' | 'skill'; id: string | number };
@@ -34,9 +35,16 @@ export const BUFF_INFO: Record<BuffId, { name: string; icon: string; base: numbe
   frenzy: { name: 'Feeding Frenzy', icon: 'angler-fish', base: 66 },
   clickstorm: { name: 'Eel Shock', icon: 'lightning-helix', base: 13 },
   combolock: { name: 'Steady Current', icon: 'waves', base: 30 },
+  flare: { name: 'Flare', icon: 'sun-radiations', base: 8 },
 };
 
 const MAX = Number.MAX_VALUE;
+/** Lumen in one dive needed for the first Black Pearl, at depth 1. */
+export const PEARL_BASE = 1e8;
+/** Water pressure: each descent deeper multiplies the lumen pearls need. */
+export const PRESSURE = 1.5;
+/** Manual taps needed to fill the flare gauge. */
+export const FLARE_TAPS = 100;
 const safe = (v: number) => (Number.isFinite(v) ? v : v > 0 ? MAX : 0);
 
 export class Game {
@@ -110,10 +118,13 @@ export class Game {
     if (m.patienceCap > 0) global *= 1 + Math.min(m.patienceCap, s.stats.runTime / 1000);
     global *= 1 + m.wanderPer * s.stats.runComets;
     if (m.entropy) global *= Math.max(0.01, 0.98 ** s.lastPurchaseAge);
+    let spill = 0;
+    for (let i = 0; i < GENERATORS.length; i++) spill += m.globalPerGen[i] * s.gens[i];
+    global *= 1 + spill;
 
     let raw = 0;
     for (let i = 0; i < GENERATORS.length; i++) {
-      let p = s.gens[i] * GENERATORS[i].baseProd * m.genMult[i];
+      let p = s.gens[i] * GENERATORS[i].baseProd * m.genMult[i] * (1 + m.selfSyn[i] * s.gens[i]);
       for (const syn of m.synergy) if (syn.target === i) p *= 1 + syn.pct * s.gens[syn.source];
       this.perGen[i] = p;
       raw += p;
@@ -123,7 +134,7 @@ export class Game {
     let base = raw * global;
     if (m.prodExp !== 1 && base > 1) base = base ** m.prodExp;
     base = safe(base);
-    const frenzy = this.buffMult('frenzy') * this.eventProdMult();
+    const frenzy = this.buffMult('frenzy') * this.eventProdMult() * this.flareProd();
     this.baseCps = base;
     this.cps = safe(base * frenzy);
     // Scale per-generator figures so they add up to the displayed total.
@@ -177,6 +188,7 @@ export class Game {
     const m = this.mods;
     if (id === 'frenzy') return 1 + (m.frenzyMult - 1) * m.buffPower;
     if (id === 'clickstorm') return 1 + (m.clickstormMult - 1) * m.buffPower;
+    if (id === 'flare') return 1 + 9 * m.buffPower; // taps; production uses flareProd()
     return 1;
   }
 
@@ -187,8 +199,10 @@ export class Game {
   /** Value of a single non-crit click right now. */
   clickValue(): number {
     const m = this.mods;
-    const base = m.clickBase * m.clickMult + this.cps * m.clickCpsPct;
-    return safe(base * this.comboMult() * this.buffMult('clickstorm') * (this.event?.click ?? 1));
+    let linked = 0;
+    for (let i = 0; i < this.perGen.length; i++) if (m.tapFromGen[i]) linked += this.perGen[i] * m.tapFromGen[i];
+    const base = m.clickBase * m.clickMult + this.cps * m.clickCpsPct + linked;
+    return safe(base * this.comboMult() * this.buffMult('clickstorm') * this.buffMult('flare') * (this.event?.click ?? 1));
   }
 
   earn(amount: number): void {
@@ -217,6 +231,11 @@ export class Game {
     }
     const ev = this.event;
     if (ev?.clickProdSeconds) wish += this.cps * ev.clickProdSeconds;
+    // Manual taps fill the flare gauge (lucky taps count double).
+    if (!s.buffs.some((b) => b.id === 'flare')) {
+      s.surge = Math.min(1, s.surge + ((crit ? 2 : 1) * m.flareFill) / FLARE_TAPS);
+      if (s.surge >= 1) this.startFlare();
+    }
     amount = safe(amount);
     this.earn(amount + wish);
     s.stats.clicks++;
@@ -232,7 +251,7 @@ export class Game {
   genCost(i: number, amount = 1): number {
     const m = this.mods;
     const r = m.costGrowth;
-    const first = GENERATORS[i].baseCost * m.costMult * this.eventCostMult() * r ** this.s.gens[i];
+    const first = GENERATORS[i].baseCost * m.costMult * m.genCostMult[i] * this.eventCostMult() * r ** this.s.gens[i];
     if (amount === 1) return first;
     return (first * (r ** amount - 1)) / (r - 1);
   }
@@ -335,16 +354,26 @@ export class Game {
   }
 
   /* ------------------------------------------------------------ prestige */
+  /** Lumen per "pearl unit" at the current depth. */
+  pearlBase(): number {
+    return PEARL_BASE * this.pressure();
+  }
+
+  /** How much harder pearls are to find at this depth. */
+  pressure(): number {
+    return PRESSURE ** Math.min(this.s.rebirths, 400);
+  }
+
   shardGain(): number {
     const m = this.mods;
-    const v = Math.floor((this.s.runEarned / 1e9) ** m.shardExp * m.shardMult);
+    const v = Math.floor((this.s.runEarned / this.pearlBase()) ** m.shardExp * m.shardMult);
     return Number.isFinite(v) ? v : MAX;
   }
 
   /** Stardust this run needed for the next shard. */
   nextShardAt(): number {
     const m = this.mods;
-    return 1e9 * ((this.shardGain() + 1) / m.shardMult) ** (1 / m.shardExp);
+    return this.pearlBase() * ((this.shardGain() + 1) / m.shardMult) ** (1 / m.shardExp);
   }
 
   rebirth(): number {
@@ -373,6 +402,7 @@ export class Game {
     s.upgrades = keep ? new Set([...s.upgrades].filter((id) => KEEPABLE.has(UPGRADE_MAP.get(id)!.kind))) : new Set();
     s.buffs = [];
     s.combo = 0;
+    s.surge = 0;
     s.lastPurchaseAge = 0;
     s.stats.runTime = 0;
     s.stats.runClicks = 0;
@@ -394,7 +424,7 @@ export class Game {
 
   /* ------------------------------------------------------------ comets */
   nextCometDelay(): number {
-    return (60 + Math.random() * 90) * this.mods.cometInterval;
+    return (30 + Math.random() * 45) * this.mods.cometInterval;
   }
 
   catchComet(): CometReward {
@@ -465,7 +495,7 @@ export class Game {
           s.comboTimer = m.comboDecay;
         }
         // Echoes use raw click power only; the "% of production" bonus rewards real clicks.
-        const echo = m.clickBase * m.clickMult * this.comboMult() * this.buffMult('clickstorm') * (this.event?.click ?? 1);
+        const echo = m.clickBase * m.clickMult * this.comboMult() * this.buffMult('clickstorm') * this.buffMult('flare') * (this.event?.click ?? 1);
         const expected = safe(echo * (1 + this.critChance() * (m.critMult - 1)));
         this.earn(expected * n);
         s.stats.clickEarned = safe(s.stats.clickEarned + expected * n);
@@ -522,12 +552,30 @@ export class Game {
     }
   }
 
+  /** The lure flares: a short burst of ×10 taps and ×3 production. */
+  startFlare(): void {
+    const s = this.s;
+    const m = this.mods;
+    s.surge = 0;
+    s.stats.flares++;
+    const duration = (BUFF_INFO.flare.base + m.flareBonus) * m.buffDuration;
+    s.buffs = s.buffs.filter((b) => b.id !== 'flare');
+    s.buffs.push({ id: 'flare', remaining: duration, duration });
+    this.recalc();
+    this.emit('flare', undefined);
+  }
+
+  flareProd(): number {
+    return this.s.buffs.some((b) => b.id === 'flare') ? 1 + 2 * this.mods.buffPower : 1;
+  }
+
   startEvent(id?: string): void {
     const s = this.s;
     const def = (id && EVENT_MAP.get(id)) || rollEvent(this.lastEventId);
     this.lastEventId = def.id;
-    s.event = { id: def.id, remaining: def.duration, duration: def.duration };
-    s.eventTimer = 150 + Math.random() * 210;
+    const dur = def.duration * this.mods.eventDuration;
+    s.event = { id: def.id, remaining: dur, duration: dur };
+    s.eventTimer = 100 + Math.random() * 120;
     s.stats.events++;
     this.recalc();
     this.emit('event', def);
@@ -542,31 +590,41 @@ export class Game {
         this.buyUpgrade(u.id, true);
       }
     }
-    if (m.autoGens && s.autobuy.gens) {
-      // Always buy the cheapest generator: keeps the army balanced and spends efficiently.
-      let bought = false;
-      for (let iter = 0; iter < 500; iter++) {
-        let best = -1;
-        let bestCost = Infinity;
-        for (let i = 0; i <= m.maxGenIndex; i++) {
-          const c = this.genCost(i);
-          if (c < bestCost) {
-            bestCost = c;
-            best = i;
-          }
-        }
-        if (best < 0 || bestCost > s.stardust) break;
-        s.stardust -= bestCost;
-        s.gens[best]++;
-        s.stats.gensBought++;
-        s.lastPurchaseAge = 0;
-        bought = true;
-      }
-      if (bought) this.recalc();
-    }
+    if (m.autoGens && s.autobuy.gens) this.buyCheapest(500);
     if (m.autoRebirth && s.autobuy.rebirth && !s.trial && this.shardGain() >= Math.max(1, s.autobuy.rebirthAt)) {
       this.rebirth();
     }
+  }
+
+  /**
+   * Keep buying whichever harvester is cheapest until the money runs out.
+   * Used by the autobuyer and the "Spend all" button. Returns how many were bought.
+   */
+  buyCheapest(limit = 2000): number {
+    const s = this.s;
+    const m = this.mods;
+    let bought = 0;
+    for (let iter = 0; iter < limit; iter++) {
+      let best = -1;
+      let bestCost = Infinity;
+      for (let i = 0; i <= m.maxGenIndex; i++) {
+        const c = this.genCost(i);
+        if (c < bestCost) {
+          bestCost = c;
+          best = i;
+        }
+      }
+      if (best < 0 || bestCost > s.stardust) break;
+      s.stardust -= bestCost;
+      s.gens[best]++;
+      s.stats.gensBought++;
+      bought++;
+    }
+    if (bought) {
+      s.lastPurchaseAge = 0;
+      this.recalc();
+    }
+    return bought;
   }
 
   checkAchievements(): void {

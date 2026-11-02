@@ -10,8 +10,17 @@ It runs entirely in the browser: no server, no tracking. Progress is saved local
 
 - **The lure.** Each tap squashes the bulb, puffs out bubbles and sends a ripple through the water. Every tap sound is a soft "bloop" plus a note on a pentatonic scale that climbs as your streak grows, so steady tapping turns into a little tune. Lucky taps pay out big.
 - **Streaks and lucky taps.** Tap in rhythm to fill the ring around the lure. Both can be upgraded.
+- **Flare.** Taps also fill a gold gauge. When it's full the lure flares: eight seconds of ×10 taps and ×3 production, with light, sound and screen shake.
 - **12 harvesters**, from Plankton Nets and Shrimp Traps to Leviathan Ranches and the Kraken Heart. Buy ×1, ×10, ×100 or Max.
-- **The Workshop: 170 upgrades.** Every harvester has 10 tiers, plus pairings between harvesters and upgrades for taps, luck, streaks, glimmerfish and everything at once.
+- **The Workshop: 170 upgrades that do different things.** Each harvester's 10 upgrades each have their own effect:
+  - plain output boosts
+  - a lure link (taps give a share of that harvester's output)
+  - colony scaling (+4% per one owned)
+  - half-price salvage
+  - a network bonus (every 10 owned lifts all production)
+  - a unique perk for each harvester
+  - mentors that double the harvester below
+  Plus pairings between harvesters, and upgrades for taps, echo taps, the flare gauge, luck, streaks, glimmerfish, sea events and everything at once.
 - **Glimmerfish** swim past now and then. Catch one for a pile of lumen or a boost: Feeding Frenzy, Eel Shock or Steady Current.
 - **Sea events.** Every few minutes the sea changes the rules for a while:
   - Plankton Bloom (production ×3)
@@ -24,8 +33,8 @@ It runs entirely in the browser: no server, no tracking. Progress is saved local
   - Thermal Vent (each tap also grants 1s of production)
   - Tidal Pulse (production swings between ×1 and ×6)
   - Warm Current (production ×1.5 for three minutes)
-- **Descent (rebirth).** Sink deeper to start a fresh dive and bring back **Black Pearls**. Pearls boost production permanently and grow the Reef. The water gets darker and colder with every descent.
-- **The Reef.** A pannable, zoomable skill tree with 66 parts across Hands, Harvest, Currents and Abyss branches, plus Confluence links, a Kinship arc with one node per harvester, and the Sleeping Leviathan at the very bottom. It unlocks autobuyers, automatic descents, longer away time and glimmerfish tricks. You can replant it at any time.
+- **Descent (rebirth).** Sink deeper to start a fresh dive and bring back **Black Pearls**. Pearls boost production permanently and grow the Reef. The water gets darker with every descent, and the pressure means pearls need more lumen the deeper you go.
+- **The Reef.** A real branching skill tree, drawn as coral growing up from a rock. One trunk splits into four boughs (Abyss, Hands, Harvest, Currents), and each forks again and again. Confluence vines link neighbouring boughs, a Kinship canopy with one node per harvester spreads across the top, and the Sleeping Leviathan sits at the end of the Abyss. It unlocks autobuyers, automatic descents, longer away time and glimmerfish tricks. Pan, zoom, and replant it at any time.
 - **8 Trenches.** Hard dives (no tapping, no workshop, crushing prices, a slow leak…) with permanent rewards.
 - **134 finds (achievements)**, including secret ones. Each gives +1% production.
 - **Logbook** with detailed statistics, and **work while away** with a "welcome back" summary.
@@ -36,7 +45,20 @@ It runs entirely in the browser: no server, no tracking. Progress is saved local
   - volume, mute and vibration
   - confirmations, autosave interval and away progress
   - save export/import (code or file) and hard reset
-- **Keyboard shortcuts.** `1`–`7` switch tabs, `B` cycles buy amount, `U` buys all upgrades, `M` mutes, `Ctrl+S` saves.
+- **A sea that comes alive.** Your harvesters swim through the background as glowing silhouettes, and the water brightens as production climbs.
+- **Quality of life:**
+  - Numbers roll up smoothly.
+  - Hold a harvester to keep buying.
+  - A "Next" buy amount goes up to the next milestone.
+  - A best-value tag and payback times.
+  - "Affordable in…" timers.
+  - Spend all (`X`).
+  - An "only what I can afford" filter in the Workshop.
+  - Pending pearls in the top bar, with a time estimate for the next one.
+  - A save indicator.
+  - A tap-sound toggle.
+  - Fast tapping sounds continuous instead of cutting out.
+- **Keyboard shortcuts.** `Space` taps, `1`–`7` switch tabs, `B` cycles buy amount, `X` spends all, `U` buys all upgrades, `M` mutes, `Ctrl+S` saves.
 - Works on phones: touch-friendly, long-press for details, haptics on supported devices.
 
 ## Look

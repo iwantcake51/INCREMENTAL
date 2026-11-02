@@ -3,7 +3,7 @@ import { BUFF_INFO } from '../core/game';
 import { fmt, fmtTime } from '../core/format';
 import { TRIAL_MAP } from '../data/trials';
 import type { EventDef } from '../data/events';
-import { $, h, setText, setWidth, toggle, replay, prefersReducedMotion } from './dom';
+import { $, h, setText, setWidth, toggle, replay, prefersReducedMotion, rollNumber, snapNumber } from './dom';
 import { ic } from './icons';
 import { fx } from './fx';
 import { sound } from './audio';
@@ -38,6 +38,7 @@ export class Stage {
   private comboEl = $('combo');
   private comboX = $('combo-x');
   private comboArc = $('combo-arc') as unknown as SVGCircleElement;
+  private flareArc = $('flare-arc') as unknown as SVGCircleElement;
   private clickValue = $('click-value');
   private clickHint = $('click-hint');
   private buffsEl = $<HTMLUListElement>('buffs');
@@ -52,6 +53,7 @@ export class Stage {
   private cometRaf = 0;
   private lastCombo = 0;
   private meteorAcc = 0;
+  private lastPop = 0;
   haptics = true;
 
   constructor(private game: Game) {
@@ -114,6 +116,12 @@ export class Stage {
     // The stalk sways via SMIL; stop it for people who asked for less motion.
     const svg = $('lure-svg') as unknown as SVGSVGElement;
     if (prefersReducedMotion()) svg.pauseAnimations();
+  }
+
+  /** Keyboard tap (Space/Enter) lands in the middle of the lure. */
+  tapCenter(): void {
+    const c = this.starCenter();
+    this.doClick(c.x, c.y);
   }
 
   starCenter(): { x: number; y: number } {
@@ -250,6 +258,22 @@ export class Stage {
     }
   }
 
+  /** The gauge filled: big flash of light from the lure. */
+  onFlare(): void {
+    const c = this.starCenter();
+    sound.flare();
+    if (this.haptics) navigator.vibrate?.([20, 40, 30]);
+    fx.ring(c.x, c.y, 320, 'rgba(255,225,150,0.95)', 5, 50);
+    fx.ring(c.x, c.y, 200, 'rgba(255,255,255,0.8)', 3, 34);
+    fx.burst(c.x, c.y, 90, { speed: 9, size: 3.2, hue: 45, light: 75, life: 55 });
+    fx.bubbles(c.x, c.y + 40, 30, 1.6);
+    fx.float(c.x, c.y - 120, `Flare! Taps ×${fmt(this.game.buffMult('flare'))}`, { size: 30, color: '#ffe08a', weight: 800, life: 100 });
+    if (!prefersReducedMotion()) {
+      replay($('app'), 'quake');
+      this.body.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.22)', offset: 0.2 }, { transform: 'scale(1)' }], { duration: 600, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+    }
+  }
+
   /* ------------------------------------------------------------ events */
   onEvent(e: EventDef): void {
     sound.event(e.tone === 'good');
@@ -263,17 +287,25 @@ export class Stage {
   update(now: number): void {
     const g = this.game;
     const s = g.s;
-    const dt = Math.min(0.25, (now - this.lastFrame) / 1000);
+    const dt = Math.max(0, Math.min(0.25, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
 
-    // Ease the big counter toward the true value so income feels continuous.
+    // The big counter rolls toward the true value; a sudden windfall gives it a little pop.
     const target = s.stardust;
-    const diff = target - this.shown;
-    if (Math.abs(diff) <= Math.max(0.5, target * 1e-6) || !Number.isFinite(diff)) this.shown = target;
-    else this.shown += diff * Math.min(1, dt * 14);
-    setText(this.counter, fmt(this.shown));
-    setText(this.cpsEl, fmt(g.cps));
-    setText(this.clickValue, fmt(g.clickValue()));
+    if (target - this.shown > Math.max(1000, g.cps * 20) && now - this.lastPop > 250) {
+      this.lastPop = now;
+      replay(this.counter, 'pop');
+    }
+    this.shown = target;
+    rollNumber(this.counter, target, fmt, { speed: 9 });
+    rollNumber(this.cpsEl, g.cps, fmt, { speed: 5 });
+    rollNumber(this.clickValue, g.clickValue(), fmt, { speed: 8 });
+
+    // Flare gauge (outer gold ring)
+    const flaring = s.buffs.find((b) => b.id === 'flare');
+    const surge = flaring ? flaring.remaining / flaring.duration : s.surge;
+    this.flareArc.style.strokeDasharray = `${(surge * 1000).toFixed(1)} 1000`;
+    toggle(this.flareArc, 'near', !flaring && s.surge >= 0.8);
 
     // Combo ring
     const cap = g.comboCap();
@@ -315,7 +347,9 @@ export class Stage {
               ? `Everything produces ×${fmt(this.game.buffMult('frenzy'))}.`
               : b.id === 'clickstorm'
                 ? `Taps give ×${fmt(this.game.buffMult('clickstorm'))}.`
-                : `Your streak stays at its cap (${this.game.comboCap()}).`;
+                : b.id === 'flare'
+                  ? `Taps ×${fmt(this.game.buffMult('flare'))} and production ×${fmt(this.game.flareProd())}.`
+                  : `Your streak stays at its cap (${this.game.comboCap()}).`;
           void m;
           return `<div class="tip-kicker">Glimmerfish boost</div><h4>${info.name}</h4><p>${what}</p>`;
         });
@@ -391,5 +425,6 @@ export class Stage {
 
   resetCounter(): void {
     this.shown = this.game.s.stardust;
+    snapNumber(this.counter, this.shown);
   }
 }

@@ -1,7 +1,7 @@
 import type { Notation } from './format';
 import { GENERATORS } from '../data/generators';
 
-export type BuyAmount = 1 | 10 | 100 | 'max';
+export type BuyAmount = 1 | 10 | 100 | 'next' | 'max';
 export type Palette = 'lumen' | 'coral' | 'amber' | 'violet';
 
 export interface Settings {
@@ -13,6 +13,7 @@ export interface Settings {
   reducedMotion: 'system' | 'on' | 'off';
   volume: number; // 0..1
   muted: boolean;
+  tapSounds: boolean;
   haptics: boolean;
   autosaveSeconds: number;
   offlineProgress: boolean;
@@ -28,7 +29,7 @@ export interface Buff {
   remaining: number; // seconds
   duration: number;
 }
-export type BuffId = 'frenzy' | 'clickstorm' | 'combolock';
+export type BuffId = 'frenzy' | 'clickstorm' | 'combolock' | 'flare';
 
 export interface Stats {
   clicks: number;
@@ -49,6 +50,7 @@ export interface Stats {
   offlineEarned: number;
   starfalls: number;
   events: number;
+  flares: number;
 }
 
 export interface GameState {
@@ -72,6 +74,8 @@ export interface GameState {
   eventTimer: number;
   combo: number;
   comboTimer: number;
+  /** Flare gauge, 0..1. Filled by manual taps. */
+  surge: number;
   cometTimer: number;
   lastPurchaseAge: number; // seconds since last generator purchase (Entropy trial)
   autobuy: { gens: boolean; upgrades: boolean; rebirth: boolean; rebirthAt: number };
@@ -92,6 +96,7 @@ export function defaultSettings(): Settings {
     reducedMotion: 'system',
     volume: 0.5,
     muted: false,
+    tapSounds: true,
     haptics: true,
     autosaveSeconds: 30,
     offlineProgress: true,
@@ -123,6 +128,7 @@ export function defaultStats(): Stats {
     offlineEarned: 0,
     starfalls: 0,
     events: 0,
+    flares: 0,
   };
 }
 
@@ -146,10 +152,11 @@ export function newGame(): GameState {
     trialsDone: new Set(),
     buffs: [],
     event: null,
-    eventTimer: 120,
+    eventTimer: 50,
     combo: 0,
     comboTimer: 0,
-    cometTimer: 45,
+    cometTimer: 20,
+    surge: 0,
     lastPurchaseAge: 0,
     autobuy: { gens: true, upgrades: true, rebirth: false, rebirthAt: 10 },
     flags: new Set(),

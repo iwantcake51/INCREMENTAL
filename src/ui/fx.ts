@@ -1,4 +1,6 @@
 import { prefersReducedMotion } from './dom';
+import { ICON_PATHS } from './icons.gen';
+import { GENERATORS } from '../data/generators';
 
 /* ==========================================================================
    Foreground effects: glowing motes, bubbles, floating numbers and ripples.
@@ -190,7 +192,8 @@ class Fx {
   }
 
   private frame = (now: number): void => {
-    const step = Math.min(3, (now - this.last) / (1000 / 60));
+    // rAF timestamps can be a hair earlier than the performance.now() taken at wake-up.
+    const step = Math.max(0, Math.min(3, (now - this.last) / (1000 / 60)));
     this.last = now;
     const { ctx, dpr } = this;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -321,6 +324,17 @@ export const fx = new Fx();
    makes the water a little darker and colder.
    ========================================================================== */
 
+interface Swimmer {
+  gen: number;
+  path: Path2D;
+  x: number;
+  y: number;
+  vx: number;
+  size: number;
+  phase: number;
+  hue: number;
+}
+
 interface Snow {
   x: number;
   y: number;
@@ -344,6 +358,11 @@ class Ocean {
   private lastDraw = 0;
   private depth = 0;
   private accent = '120 242 207';
+  private swimmers: Swimmer[] = [];
+  private paths = new Map<number, Path2D>();
+  private lifeKey = '';
+  /** 0..1: how lit-up the sea is, from your production. */
+  private glow = 0;
 
   init(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
@@ -365,6 +384,43 @@ class Ocean {
   setAccent(rgb: string): void {
     this.accent = rgb.trim().replace(/,/g, ' ');
     this.build();
+  }
+
+  /**
+   * Your harvesters, drawn as faint glowing silhouettes drifting through the water.
+   * More of each kind appear as you own more, and the whole sea brightens with production.
+   */
+  setLife(gens: number[], cps: number): void {
+    this.glow = Math.min(1, Math.log10(cps + 1) / 22);
+    const want = gens.map((n) => (n <= 0 ? 0 : Math.min(5, 1 + Math.floor(Math.log10(n) * 1.6))));
+    const key = want.join(',');
+    if (key === this.lifeKey) return;
+    this.lifeKey = key;
+    want.forEach((count, gen) => {
+      const mine = this.swimmers.filter((w) => w.gen === gen);
+      for (let i = count; i < mine.length; i++) this.swimmers.splice(this.swimmers.indexOf(mine[i]), 1);
+      for (let i = mine.length; i < count; i++) this.swimmers.push(this.spawnSwimmer(gen, this.lifeKey !== '' && mine.length > 0));
+    });
+  }
+
+  private spawnSwimmer(gen: number, offscreen: boolean): Swimmer {
+    let path = this.paths.get(gen);
+    if (!path) {
+      path = new Path2D(ICON_PATHS[GENERATORS[gen].icon] ?? '');
+      this.paths.set(gen, path);
+    }
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const size = 18 + gen * 4.5 + Math.random() * 10;
+    return {
+      gen,
+      path,
+      x: offscreen ? (dir > 0 ? -size : this.w + size) : Math.random() * (this.w || 1200),
+      y: (this.h || 800) * (0.12 + Math.random() * 0.72),
+      vx: dir * (0.15 + Math.random() * 0.35) * (1 - gen * 0.04),
+      size,
+      phase: Math.random() * Math.PI * 2,
+      hue: GENERATORS[gen].hue,
+    };
   }
 
   /** Each descent darkens the water a little (caps out around depth 12). */
@@ -475,7 +531,7 @@ class Ocean {
       const lean = 120 + Math.sin(s * 0.1 + i) * 40;
       const len = this.h * (0.55 + ((i * 13) % 30) / 100);
       const grad = g.createLinearGradient(0, 0, 0, len);
-      const alpha = (0.035 + 0.02 * Math.sin(s * 0.4 + i * 2)) * k;
+      const alpha = (0.035 + 0.02 * Math.sin(s * 0.4 + i * 2)) * k * (1 + this.glow * 1.6);
       grad.addColorStop(0, `rgba(180,255,235,${alpha})`);
       grad.addColorStop(1, 'rgba(180,255,235,0)');
       g.fillStyle = grad;
@@ -486,6 +542,37 @@ class Ocean {
       g.lineTo(cx + lean - spread, len);
       g.closePath();
       g.fill();
+    }
+    // The more you produce, the more the deep glows back.
+    if (this.glow > 0.02) {
+      const haze = g.createRadialGradient(this.w * 0.35, this.h, 0, this.w * 0.35, this.h, this.h * 0.9);
+      haze.addColorStop(0, `rgb(${this.accent} / ${0.12 * this.glow})`);
+      haze.addColorStop(1, `rgb(${this.accent} / 0)`);
+      g.fillStyle = haze;
+      g.fillRect(0, 0, this.w, this.h);
+    }
+
+    // Your harvesters, swimming about.
+    for (const w of this.swimmers) {
+      if (!still) {
+        w.x += w.vx;
+        if (w.vx > 0 && w.x > this.w + w.size) w.x = -w.size;
+        if (w.vx < 0 && w.x < -w.size) w.x = this.w + w.size;
+      }
+      const bob = Math.sin(s * 0.8 + w.phase) * 6;
+      const sc = w.size / 512;
+      const a = 0.1 + 0.12 * this.glow;
+      g.save();
+      g.translate(w.x, w.y + bob);
+      g.scale(w.vx < 0 ? -sc : sc, sc);
+      g.translate(-256, -256);
+      g.fillStyle = `hsl(${w.hue} 70% 70% / ${a * 0.35})`;
+      g.lineWidth = 60;
+      g.strokeStyle = `hsl(${w.hue} 70% 70% / ${a * 0.25})`;
+      g.stroke(w.path);
+      g.fillStyle = `hsl(${w.hue} 70% 72% / ${a})`;
+      g.fill(w.path);
+      g.restore();
     }
     g.globalCompositeOperation = 'source-over';
 

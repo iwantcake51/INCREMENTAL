@@ -60,3 +60,77 @@ export function prefersReducedMotion(): boolean {
   if (forced === 'off') return false;
   return matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
+
+/* ==========================================================================
+   Smooth numbers: displayed values glide toward their targets instead of
+   jumping. Large changes ease in log space so a ×1000 jump still rolls up
+   visibly. One shared rAF loop runs only while something is moving.
+   ========================================================================== */
+interface Tween {
+  shown: number;
+  target: number;
+  format: (n: number) => string;
+  integer: boolean;
+  speed: number;
+}
+const tweens = new Map<Element, Tween>();
+let tweenRaf = 0;
+let tweenLast = 0;
+
+/**
+ * Show `value` in `el`, rolling smoothly from whatever it showed before.
+ * `integer` keeps counts whole while they roll; `speed` is roughly 1/seconds to settle.
+ */
+export function rollNumber(el: Element, value: number, format: (n: number) => string, opts: { integer?: boolean; speed?: number } = {}): void {
+  let t = tweens.get(el);
+  if (!t) {
+    t = { shown: value, target: value, format, integer: !!opts.integer, speed: opts.speed ?? 7 };
+    tweens.set(el, t);
+    setText(el, format(value));
+    return;
+  }
+  t.format = format;
+  if (t.target === value) return;
+  t.target = value;
+  if (prefersReducedMotion() || !Number.isFinite(value) || !Number.isFinite(t.shown)) {
+    t.shown = value;
+    setText(el, format(value));
+    return;
+  }
+  if (!tweenRaf) {
+    tweenLast = performance.now();
+    tweenRaf = requestAnimationFrame(stepTweens);
+  }
+}
+
+/** Jump straight to the value (after a reset, say). */
+export function snapNumber(el: Element, value: number): void {
+  const t = tweens.get(el);
+  if (!t) return;
+  t.shown = t.target = value;
+  setText(el, t.format(value));
+}
+
+function stepTweens(now: number): void {
+  const dt = Math.max(0, Math.min(0.1, (now - tweenLast) / 1000));
+  tweenLast = now;
+  let moving = false;
+  for (const [el, t] of tweens) {
+    if (!el.isConnected) {
+      tweens.delete(el);
+      continue;
+    }
+    if (t.shown === t.target) continue;
+    const k = 1 - Math.exp(-dt * t.speed);
+    const a = t.shown;
+    const b = t.target;
+    let next: number;
+    if (a > 0 && b > 0 && (b / a > 1.6 || a / b > 1.6)) next = Math.exp(Math.log(a) + (Math.log(b) - Math.log(a)) * k);
+    else next = a + (b - a) * k;
+    const close = Math.abs(b - next) <= Math.max(t.integer ? 0.5 : 0.005, Math.abs(b) * 2e-4);
+    t.shown = close ? b : next;
+    if (!close) moving = true;
+    setText(el, t.format(t.integer ? Math.round(t.shown) : t.shown));
+  }
+  tweenRaf = moving ? requestAnimationFrame(stepTweens) : 0;
+}

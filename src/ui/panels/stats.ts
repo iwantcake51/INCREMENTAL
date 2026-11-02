@@ -46,6 +46,7 @@ export class StatsPanel implements Panel {
         ['Upgrades bought', () => fmtInt(s().stats.upgradesBought)],
         ['Glimmerfish caught', () => fmtInt(s().stats.comets)],
         ['Sea events', () => fmtInt(s().stats.events)],
+        ['Flares', () => fmtInt(s().stats.flares)],
         ['Descents', () => fmtInt(s().rebirths)],
         ['Black Pearls found', () => fmt(s().shardsTotal)],
         ['Gathered while away', () => fmt(s().stats.offlineEarned)],

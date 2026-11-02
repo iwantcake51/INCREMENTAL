@@ -1,7 +1,7 @@
 import type { Game } from '../../core/game';
 import { SKILLS, SKILL_MAP, BRANCH_HUE, BRANCH_LABEL, skillCost, skillUnlocked, type SkillDef } from '../../data/skills';
 import { fmt } from '../../core/format';
-import { h, setText, setHtml, toggle, replay } from '../dom';
+import { h, setText, setHtml, toggle, replay, rollNumber } from '../dom';
 import { ic } from '../icons';
 import { tip } from '../tooltip';
 import { sound } from '../audio';
@@ -24,7 +24,7 @@ export class SkillsPanel implements Panel {
   private shardsEl: HTMLElement;
   private noteEl: HTMLElement;
   private nodes = new Map<string, HTMLButtonElement>();
-  private edges: { line: SVGLineElement; from: string; to: string }[] = [];
+  private edges: { line: SVGPathElement; from: string; to: string }[] = [];
   private selected = 'ignition';
   private view = { x: 0, y: 0, k: 1 };
   private minX = 0;
@@ -52,7 +52,7 @@ export class SkillsPanel implements Panel {
     zin.addEventListener('click', () => this.zoomAt(1.25));
     zout.addEventListener('click', () => this.zoomAt(0.8));
     zoom.append(zin, zout);
-    const legend = h('div', { class: 'tree-legend' }, 'Drag to look around, scroll or pinch to zoom, tap a polyp twice to grow it');
+    const legend = h('div', { class: 'tree-legend' }, 'Drag to look around, scroll or pinch to zoom. Tap a polyp twice to grow it.');
     this.tree.append(zoom, legend);
     this.el.append(bar, this.tree, this.detail);
     this.bindPanZoom();
@@ -71,7 +71,8 @@ export class SkillsPanel implements Panel {
     this.minX = Math.min(...xs) * UNIT - PAD;
     this.minY = Math.min(...ys) * UNIT - PAD;
     this.width = Math.max(...xs) * UNIT + PAD - this.minX;
-    this.height = Math.max(...ys) * UNIT + PAD - this.minY;
+    // Leave room below the root for the trunk and the rock it grows from.
+    this.height = 2.6 * UNIT + PAD - this.minY;
     this.canvas.style.width = `${this.width}px`;
     this.canvas.style.height = `${this.height}px`;
 
@@ -81,35 +82,62 @@ export class SkillsPanel implements Panel {
     svg.setAttribute('height', String(this.height));
     const ox = -this.minX;
     const oy = -this.minY;
-    const rings = document.createElementNS(SVG_NS, 'g');
-    rings.classList.add('tree-rings');
-    for (const r of [1.2, 2.6, 4.05, 5.4, 6.2, 7.8]) {
-      const c = document.createElementNS(SVG_NS, 'circle');
-      c.setAttribute('cx', String(ox));
-      c.setAttribute('cy', String(oy));
-      c.setAttribute('r', String(r * UNIT));
-      rings.append(c);
-    }
-    svg.append(rings);
+    const X = (v: number) => v * UNIT + ox;
+    const Y = (v: number) => v * UNIT + oy;
+    const mk = (tag: string, attrs: Record<string, string | number>) => {
+      const el = document.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+      return el;
+    };
+
+    // Seabed rock and the trunk rising out of it.
+    const ground = mk('g', { class: 'tree-ground' });
+    ground.append(
+      mk('path', { class: 'tree-trunk', d: `M ${X(-0.5)} ${Y(1.9)} C ${X(-0.25)} ${Y(1.1)}, ${X(-0.2)} ${Y(0.5)}, ${X(0)} ${Y(0)} C ${X(0.2)} ${Y(0.5)}, ${X(0.25)} ${Y(1.1)}, ${X(0.5)} ${Y(1.9)} Z` }),
+      mk('ellipse', { class: 'tree-rock', cx: X(0), cy: Y(2.05), rx: 2.6 * UNIT, ry: 0.42 * UNIT }),
+      mk('ellipse', { class: 'tree-rock-hi', cx: X(-0.4), cy: Y(1.92), rx: 1.4 * UNIT, ry: 0.14 * UNIT }),
+    );
+    svg.append(ground);
+
+    // Depth of each node along its main branch, so boughs taper as they climb.
+    const depth = new Map<string, number>();
+    const depthOf = (id: string): number => {
+      const known = depth.get(id);
+      if (known !== undefined) return known;
+      const def = SKILL_MAP.get(id)!;
+      const d = def.req.length ? depthOf(def.req[0]) + 1 : 0;
+      depth.set(id, d);
+      return d;
+    };
+
+    const vines = mk('g', { class: 'tree-vines' });
+    const boughs = mk('g', { class: 'tree-boughs' });
     for (const s of SKILLS) {
-      for (const req of s.req) {
+      s.req.forEach((req, i) => {
         const p = SKILL_MAP.get(req)!;
-        const line = document.createElementNS(SVG_NS, 'line');
-        line.setAttribute('x1', String(p.x * UNIT + ox));
-        line.setAttribute('y1', String(p.y * UNIT + oy));
-        line.setAttribute('x2', String(s.x * UNIT + ox));
-        line.setAttribute('y2', String(s.y * UNIT + oy));
-        svg.append(line);
-        this.edges.push({ line, from: req, to: s.id });
-      }
+        const [x1, y1, x2, y2] = [X(p.x), Y(p.y), X(s.x), Y(s.y)];
+        const midY = (y1 + y2) / 2;
+        // Curves leave the parent going up and arrive at the child from below, like a branch.
+        const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+        const primary = i === 0;
+        const path = mk('path', {
+          d,
+          class: primary ? 'bough' : 'vine',
+          style: `--hue:${BRANCH_HUE[s.branch]}`,
+          'stroke-width': primary ? Math.max(3.5, 15 - depthOf(s.id) * 2.4) : 2,
+        }) as SVGPathElement;
+        (primary ? boughs : vines).append(path);
+        this.edges.push({ line: path, from: req, to: s.id });
+      });
     }
+    svg.append(vines, boughs);
     this.canvas.append(svg);
 
     for (const s of SKILLS) {
       const node = h('button', {
         class: `node${BIG.has(s.id) ? ' big' : ''}`,
         type: 'button',
-        style: `left:${s.x * UNIT + ox}px;top:${s.y * UNIT + oy}px;--hue:${BRANCH_HUE[s.branch]}`,
+        style: `left:${X(s.x)}px;top:${Y(s.y)}px;--hue:${BRANCH_HUE[s.branch]}`,
         'aria-label': s.name,
       }) as HTMLButtonElement;
       node.innerHTML = `${ic(s.icon)}<span class="node-lvl"></span>`;
@@ -121,6 +149,12 @@ export class SkillsPanel implements Panel {
       tip(node, () => this.tipFor(s));
       this.canvas.append(node);
       this.nodes.set(s.id, node);
+    }
+
+    // Labels for the four boughs, just above where each one leaves the trunk.
+    for (const [id, label] of [['n_yield', 'Abyss'], ['k_touch', 'Hands'], ['p_fusion', 'Harvest'], ['c_lure', 'Currents']] as const) {
+      const n = SKILL_MAP.get(id)!;
+      this.canvas.append(h('span', { class: 'bough-label', style: `left:${X(n.x)}px;top:${Y(n.y) + 40}px;--hue:${BRANCH_HUE[n.branch]}` }, label));
     }
   }
 
@@ -242,12 +276,16 @@ export class SkillsPanel implements Panel {
     this.apply();
   }
 
+  /** Frame the lower tree: trunk at the bottom, the first few forks in view. */
   private fit(animate: boolean): void {
     const w = this.tree.clientWidth;
     const hh = this.tree.clientHeight;
     if (!w || !hh) return;
-    const k = Math.min(1, Math.max(0.5, Math.min(w / (10.5 * UNIT), hh / (8.5 * UNIT))));
-    this.view = { k, x: w / 2 + this.minX * k, y: hh / 2 + this.minY * k };
+    const k = Math.min(1, Math.max(0.45, Math.min(w / (16.5 * UNIT), hh / (8 * UNIT))));
+    // world point (0, -2.6) in the middle of the view
+    const cx = (0 * UNIT - this.minX) * k;
+    const cy = (-2.6 * UNIT - this.minY) * k;
+    this.view = { k, x: w / 2 - cx, y: hh / 2 - cy + hh * 0.08 };
     if (animate) {
       this.canvas.style.transition = 'transform .45s cubic-bezier(.22,1,.36,1)';
       setTimeout(() => (this.canvas.style.transition = ''), 460);
@@ -300,8 +338,15 @@ export class SkillsPanel implements Panel {
   update(): void {
     const g = this.game;
     const sk = g.s.skills;
-    setText(this.shardsEl, `${fmt(g.s.shards)} black pearls`);
-    setText(this.noteEl, g.mods.noSkills ? 'Asleep during the Bleached Reef trench' : '');
+    rollNumber(this.shardsEl, g.s.shards, (n) => `${fmt(n)} black pearls`, { speed: 7 });
+    setText(
+      this.noteEl,
+      g.mods.noSkills
+        ? 'Asleep during the Bleached Reef trench'
+        : g.s.shardsTotal === 0 && g.shardGain() === 0
+          ? 'Black Pearls grow the Reef. You get them by descending (see the Descent tab).'
+          : '',
+    );
     for (const s of SKILLS) {
       const node = this.nodes.get(s.id)!;
       const lvl = sk[s.id] ?? 0;
@@ -330,7 +375,5 @@ export class SkillsPanel implements Panel {
     return SKILLS.some((s) => g.canBuySkill(s.id));
   }
 
-  available(): boolean {
-    return this.game.s.rebirths > 0 || this.game.s.shards > 0 || this.game.shardGain() > 0;
-  }
+
 }

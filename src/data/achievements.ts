@@ -75,6 +75,9 @@ ladder('comet', 'fishing-lure', [[1, 'Got One!'], [10, 'Net Gains'], [50, 'Fish 
 ladder('event', 'high-tide', [[1, 'Weather Eye'], [10, 'Seasoned'], [50, 'Weathered'], [200, 'Knows Every Tide']],
   (n) => (n === 1 ? 'Ride out a sea event.' : `Ride out ${n} sea events.`), (s) => s.stats.events);
 
+ladder('flare', 'sun-radiations', [[1, 'First Flare'], [25, 'Bright Spark'], [250, 'Lighthouse Keeper']],
+  (n) => (n === 1 ? 'Make the lure flare.' : `Make the lure flare ${n} times.`), (s) => s.stats.flares);
+
 ladder('reb', 'anchor', [[1, 'Going Down'], [5, 'Deeper Still'], [10, 'Pressure Proof'], [25, 'Lost the Surface'], [100, 'Bottomless']],
   (n) => (n === 1 ? 'Make your first descent.' : `Descend ${n} times.`), (s) => s.rebirths);
 

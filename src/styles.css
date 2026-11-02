@@ -290,6 +290,39 @@ dialog,
   animation: bump 0.45s var(--ease-spring);
 }
 
+.save-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  opacity: 0;
+}
+.save-note.show {
+  animation: save-note 1.8s ease-out;
+}
+.chip-pending {
+  margin-left: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgb(var(--pearl-rgb) / 0.16);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.gen-tag {
+  flex: none;
+  padding: 1px 7px 2px;
+  border-radius: 4px;
+  background: #2c4a1f;
+  color: var(--good);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
 .topbar-actions {
   display: flex;
   gap: 8px;
@@ -359,6 +392,9 @@ dialog,
   letter-spacing: -0.02em;
   color: var(--ink);
   text-shadow: 0 3px 0 var(--shadow);
+}
+.counter-value.pop {
+  animation: counter-pop 0.45s var(--ease-spring);
 }
 .counter-label {
   margin-top: 2px;
@@ -476,6 +512,41 @@ dialog,
 }
 .combo-arc.full {
   stroke: var(--gold);
+}
+.flare-track {
+  fill: none;
+  stroke: rgb(255 207 110 / 0.12);
+  stroke-width: 6;
+}
+.flare-arc {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 0 1000;
+  transition: stroke-dasharray 0.15s ease-out;
+}
+.flare-arc.near {
+  animation: flare-near 0.5s ease-in-out infinite alternate;
+}
+.stage[data-buff~='flare'] {
+  --lure-glow: #ffe08a;
+  --lure-hot: #ffffff;
+  --lure-mid: #ffd66b;
+  --lure-edge: #c27a12;
+}
+.stage[data-buff~='flare'] .star-halo {
+  animation-duration: 0.7s;
+  scale: 1.25;
+}
+.stage[data-buff~='flare'] .star-rays-a {
+  animation-duration: 6s;
+}
+.stage[data-buff~='flare'] .star-rays circle {
+  fill: var(--gold);
+}
+.stage[data-buff~='flare'] .flare-arc {
+  stroke: #fff3c4;
 }
 
 .combo {
@@ -1249,7 +1320,9 @@ dialog,
   overflow: hidden;
   cursor: grab;
   touch-action: none;
-  background: radial-gradient(circle at 50% 50%, #0b2a30, var(--sea-0) 70%);
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 100%, #0d2d33, transparent 70%),
+    linear-gradient(180deg, var(--sea-0), #061519);
 }
 .tree.dragging {
   cursor: grabbing;
@@ -1266,25 +1339,51 @@ dialog,
   overflow: visible;
   pointer-events: none;
 }
-.tree-edges line {
-  stroke: #17373e;
-  stroke-width: 3;
-  stroke-linecap: round;
-  transition: stroke 0.4s;
-}
-.tree-edges line.lit {
-  stroke: var(--copper);
-}
-.tree-edges line.open {
-  stroke: #2b5a61;
-  stroke-dasharray: 2 7;
-}
-.tree-rings circle {
+.tree-edges path.bough {
   fill: none;
-  stroke: rgb(255 255 255 / 0.03);
-  stroke-width: 2;
-  stroke-dasharray: 1 10;
+  stroke: #12313a;
   stroke-linecap: round;
+  transition: stroke 0.5s;
+}
+.tree-edges path.bough.open {
+  stroke: #24525a;
+}
+.tree-edges path.bough.lit {
+  stroke: hsl(var(--hue) 45% 42%);
+}
+.tree-edges path.vine {
+  fill: none;
+  stroke: #1d434a;
+  stroke-dasharray: 1 7;
+  stroke-linecap: round;
+}
+.tree-edges path.vine.lit {
+  stroke: hsl(var(--hue) 40% 50%);
+}
+.tree-trunk {
+  fill: #15343b;
+}
+.tree-rock {
+  fill: #0a1c21;
+  stroke: #17373e;
+  stroke-width: 2;
+}
+.tree-rock-hi {
+  fill: #183a41;
+  opacity: 0.6;
+}
+.bough-label {
+  position: absolute;
+  translate: -50% 0;
+  padding: 1px 8px 2px;
+  border-radius: 4px;
+  background: var(--sea-0);
+  border: 1px solid hsl(var(--hue) 35% 30%);
+  color: hsl(var(--hue) 45% 66%);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  pointer-events: none;
+  white-space: nowrap;
 }
 .node {
   --hue: 170;
@@ -2115,6 +2214,30 @@ kbd {
     opacity: 0.8;
   }
 }
+@keyframes flare-near {
+  to {
+    stroke: #fff3c4;
+    stroke-width: 8;
+  }
+}
+@keyframes save-note {
+  15%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes counter-pop {
+  35% {
+    scale: 1.07;
+    color: #ffffff;
+    text-shadow:
+      0 3px 0 var(--shadow),
+      0 0 24px rgb(var(--lumen-rgb) / 0.6);
+  }
+}
 @keyframes swim {
   from {
     translate: 0 -3px;
@@ -2280,6 +2403,7 @@ kbd {
     width: 36px;
     height: 36px;
   }
+  .save-note,
   .chip-label,
   .tab span.tab-label {
     display: none;

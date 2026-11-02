@@ -24,10 +24,12 @@
         </button>
         <div class="depth-tag" id="depth-tag" hidden>Depth <b id="depth-num">1</b></div>
         <div class="topbar-res">
-          <div class="chip chip-shards" id="chip-shards" hidden>
+          <span class="save-note" id="save-note" aria-live="polite"></span>
+          <div class="chip chip-shards" id="chip-shards" hidden data-tip="Black Pearls you can spend on the Reef">
             <span class="chip-ic" data-icon="oyster-pearl"></span>
             <span class="chip-val" id="shards-top">0</span>
             <span class="chip-label">black pearls</span>
+            <span class="chip-pending" id="shards-pending" hidden></span>
           </div>
         </div>
         <div class="topbar-actions">
@@ -90,6 +92,8 @@
                   <circle class="star-halo" r="200" fill="url(#g-halo)" />
                   <g class="star-rays star-rays-a" id="rays-a"></g>
                   <g class="star-rays star-rays-b" id="rays-b"></g>
+                  <circle r="134" class="flare-track" />
+                  <circle r="134" class="flare-arc" id="flare-arc" pathLength="1000" transform="rotate(-90)" />
                   <circle r="116" class="combo-track" />
                   <circle r="116" class="combo-arc" id="combo-arc" pathLength="1000" transform="rotate(-90)" />
                   <g class="star-body" id="star-body">

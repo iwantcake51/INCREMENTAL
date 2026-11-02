@@ -4,7 +4,7 @@ import { fmt } from '../core/format';
 import { TRIAL_MAP } from '../data/trials';
 import type { AchievementDef } from '../data/achievements';
 import { pickNews } from '../data/news';
-import { $, h, setText, toggle, replay, prefersReducedMotion } from './dom';
+import { $, h, setText, toggle, replay, prefersReducedMotion, rollNumber } from './dom';
 import { ic, hydrateIcons } from './icons';
 import { fx, sky } from './fx';
 import { sound } from './audio';
@@ -195,19 +195,28 @@ export class App {
     if (now - this.lastPanel > 100) {
       this.lastPanel = now;
       this.panels.find((p) => p.id === this.active)?.update();
-      setText($('shards-top'), fmt(this.game.s.shards));
+      rollNumber($('shards-top'), this.game.s.shards, fmt, { speed: 6 });
     }
     if (now - this.lastSlow > 500) {
       this.lastSlow = now;
-      $('chip-shards').hidden = this.game.s.shardsTotal <= 0;
+      sky.setLife(this.game.s.gens, this.game.cps);
+      const pending = this.game.shardGain();
+      $('chip-shards').hidden = this.game.s.shardsTotal <= 0 && pending <= 0;
+      const pend = $('shards-pending');
+      pend.hidden = pending <= 0;
+      if (pending > 0) setText(pend, `+${fmt(pending)} waiting`);
       this.updateTabAvailability();
       refreshTip();
     }
   };
 
-  private save(): void {
+  private save(show = true): void {
     this.lastSave = Date.now();
-    saveLocal(this.game.s);
+    if (saveLocal(this.game.s) && show) {
+      const note = $('save-note');
+      note.textContent = 'Saved';
+      replay(note, 'show');
+    }
   }
 
   private awardOffline(seconds: number): void {
@@ -236,6 +245,7 @@ export class App {
       if (twin) setTimeout(() => this.stage.spawnComet(), 700);
     });
     g.on('event', (e) => this.stage.onEvent(e));
+    g.on('flare', () => this.stage.onFlare());
     g.on('eventEnd', (e) => toast({ icon: e.icon, kicker: 'The sea settles', title: `${e.name} is over`, ms: 2600 }));
     g.on('rebirth', ({ shards }) => {
       sound.rebirth();
@@ -329,11 +339,18 @@ export class App {
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const n = Number(e.key);
+      if (e.key === ' ' && !e.repeat && !t.closest('button, a, [role="tab"]')) {
+        e.preventDefault();
+        sound.unlock();
+        this.stage.tapCenter();
+        return;
+      }
       if (n >= 1 && n <= this.panels.length) {
         const p = this.panels[n - 1];
         if (!this.tabs.get(p.id)!.btn.hidden) this.show(p.id, true);
       } else if (e.key.toLowerCase() === 'b') this.gensPanel.cycleAmount();
       else if (e.key.toLowerCase() === 'm') mute.click();
+      else if (e.key.toLowerCase() === 'x') this.gensPanel.spendAll();
       else if (e.key.toLowerCase() === 'u') {
         if (g.buyAllUpgrades() > 0) sound.upgrade();
         else sound.denied();
@@ -341,10 +358,10 @@ export class App {
     });
 
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.save();
+      if (document.hidden) this.save(false);
       else this.lastPanel = 0;
     });
-    addEventListener('pagehide', () => this.save());
+    addEventListener('pagehide', () => this.save(false));
     addEventListener('resize', () => this.placeSky());
 
     // Tab title shows your stash while you're away.

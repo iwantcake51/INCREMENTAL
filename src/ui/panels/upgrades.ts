@@ -1,12 +1,14 @@
 import type { Game } from '../../core/game';
 import { UPGRADE_MAP, type UpgradeDef, type UpgradeKind } from '../../data/upgrades';
-import { fmt } from '../../core/format';
+import { fmt, fmtTime } from '../../core/format';
 import { h, setText, toggle } from '../dom';
 import { ic } from '../icons';
 import { tip, consumeLongPress, hideTip } from '../tooltip';
 import { sound } from '../audio';
 import { fx } from '../fx';
 import type { Panel } from './panel';
+
+const FILTER_KEY = 'lanterndeep-upg-filter';
 
 const KIND_LABEL: Record<UpgradeKind, string> = {
   gen: 'Harvester upgrade',
@@ -33,6 +35,7 @@ export class UpgradesPanel implements Panel {
   private ownedKey = -1;
   private tiles = new Map<string, HTMLButtonElement>();
   private shop: UpgradeDef[] = [];
+  private filter: HTMLInputElement;
 
   constructor(private game: Game) {
     const head = h('div', { class: 'view-head' });
@@ -48,17 +51,40 @@ export class UpgradesPanel implements Panel {
         this.update();
       } else sound.denied();
     });
-    head.append(this.buyAll);
+    // "Only what I can afford" filter, remembered per browser.
+    const filterLabel = h('label', { class: 'filter-toggle' });
+    this.filter = h('input', { type: 'checkbox', class: 'switch', role: 'switch' }) as HTMLInputElement;
+    try {
+      this.filter.checked = localStorage.getItem(FILTER_KEY) === '1';
+    } catch {
+      /* storage blocked */
+    }
+    this.filter.addEventListener('change', () => {
+      try {
+        localStorage.setItem(FILTER_KEY, this.filter.checked ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      sound.tick();
+      this.key = '';
+      this.update();
+    });
+    filterLabel.append(this.filter, document.createTextNode('Only what I can afford'));
+    head.append(filterLabel, this.buyAll);
     this.ownedWrap.innerHTML = '<h3>Fitted this dive</h3>';
     this.ownedWrap.append(this.ownedIcons);
     this.el.append(head, this.grid, this.empty, this.ownedWrap);
   }
 
   private tipHtml(u: UpgradeDef, owned = false): string {
-    const cost = this.game.upgradeCost(u);
-    const ok = cost <= this.game.s.stardust;
+    const g = this.game;
+    const cost = g.upgradeCost(u);
+    const ok = cost <= g.s.stardust;
+    const wait = !ok && g.cps > 0 ? (cost - g.s.stardust) / g.cps : 0;
     return `<div class="tip-kicker">${KIND_LABEL[u.kind]}</div><h4>${u.name}</h4><p>${u.desc}</p>
-      ${owned ? '<div class="tip-meta"><span>Fitted</span></div>' : `<div class="tip-meta"><span>Cost</span><span class="tip-cost ${ok ? 'ok' : ''}">${fmt(cost)}</span></div>`}`;
+      ${owned ? '<div class="tip-meta"><span>Fitted</span></div>' : `<div class="tip-meta"><span>Cost</span><span class="tip-cost ${ok ? 'ok' : ''}">${fmt(cost)}</span></div>${
+        wait > 0 ? `<div class="tip-meta"><span>Affordable in</span><span>${fmtTime(wait)}</span></div>` : ''
+      }`}`;
   }
 
   private buy(u: UpgradeDef, tile: HTMLButtonElement): void {
@@ -121,6 +147,7 @@ export class UpgradesPanel implements Panel {
   update(): void {
     const g = this.game;
     this.shop = g.shopUpgrades().slice(0, 80);
+    if (this.filter.checked) this.shop = this.shop.filter((u) => g.upgradeCost(u) <= g.s.stardust);
     const key = this.shop.map((u) => u.id).join('|');
     if (key !== this.key) {
       this.key = key;
