@@ -25,7 +25,9 @@ export class StatsPanel implements Panel {
         ['Upgrades fitted', () => fmtInt(s().upgrades.size)],
       ]],
       ['Right now', [
-        ['Production', () => `${fmt(g().cps)}/s`],
+        ['Income, taps included', () => `${fmt(g().totalRate)}/s`],
+        ['From harvesters', () => `${fmt(g().cps)}/s`],
+        ['From tapping', () => `${fmt(g().tapRate)}/s`],
         ['Lumen per tap', () => fmt(g().clickValue())],
         ['Global multiplier', () => `×${fmt(g().globalMult)}`],
         ['Lucky-tap chance', () => fmtPct(g().critChance())],

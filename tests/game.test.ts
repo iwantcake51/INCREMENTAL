@@ -64,6 +64,22 @@ describe('economy', () => {
     g.tick(0.05);
     expect(g.s.trialsDone.has('t_silent')).toBe(true);
   });
+  it('per-second income includes taps and settles when tapping stops', () => {
+    const g = new Game();
+    g.s.gens[0] = 10;
+    g.recalc();
+    expect(g.totalRate).toBeCloseTo(g.cps);
+    for (let i = 0; i < 60; i++) {
+      for (let c = 0; c < 2; c++) g.click(); // ~40 taps/s at 20 ticks/s
+      g.tick(0.05);
+    }
+    const peak = g.tapRate;
+    expect(peak).toBeGreaterThan(0);
+    expect(g.totalRate).toBeGreaterThan(g.cps);
+    for (let i = 0; i < 100; i++) g.tick(0.05); // stop tapping for 5s
+    expect(g.tapRate).toBeLessThan(peak * 0.01);
+  });
+
   it('cosmic events apply and expire', () => {
     const g = new Game();
     g.s.gens[0] = 10;

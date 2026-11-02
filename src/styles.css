@@ -410,6 +410,10 @@ dialog,
   color: var(--ink);
   font-weight: 700;
 }
+.counter-rate .rate-taps {
+  color: var(--lumen);
+  font-weight: 600;
+}
 
 .star-wrap {
   position: relative;

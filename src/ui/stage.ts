@@ -35,6 +35,7 @@ export class Stage {
   private stageEl = $('stage');
   private counter = $('stardust');
   private cpsEl = $('cps');
+  private rateTaps = $('rate-taps');
   private comboEl = $('combo');
   private comboX = $('combo-x');
   private comboArc = $('combo-arc') as unknown as SVGCircleElement;
@@ -298,7 +299,12 @@ export class Stage {
     }
     this.shown = target;
     rollNumber(this.counter, target, fmt, { speed: 9 });
-    rollNumber(this.cpsEl, g.cps, fmt, { speed: 5 });
+    rollNumber(this.cpsEl, g.totalRate, fmt, { speed: 8 });
+    // Call out the tapping share while it's meaningful.
+    const tapShare = g.totalRate > 0 ? g.tapRate / g.totalRate : 0;
+    const showTaps = g.tapRate > 0 && tapShare >= 0.05;
+    if (this.rateTaps.hidden === showTaps) this.rateTaps.hidden = !showTaps;
+    if (showTaps) rollNumber(this.rateTaps, g.tapRate, (n) => ` · ${fmt(n)} from taps`, { speed: 8 });
     rollNumber(this.clickValue, g.clickValue(), fmt, { speed: 8 });
 
     // Flare gauge (outer gold ring)

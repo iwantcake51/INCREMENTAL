@@ -54,6 +54,14 @@ export class Game {
 
   /** Cached per tick so UI reads are free. */
   cps = 0;
+  /** Smoothed lumen per second from tapping (manual taps, echo taps, bottles). */
+  tapRate = 0;
+  private tapAcc = 0;
+
+  /** Everything you are earning per second right now, taps included. */
+  get totalRate(): number {
+    return this.cps + this.tapRate;
+  }
   baseCps = 0; // without buffs (for offline and comets)
   perGen: number[] = GENERATORS.map(() => 0);
   globalMult = 1;
@@ -238,6 +246,7 @@ export class Game {
     }
     amount = safe(amount);
     this.earn(amount + wish);
+    this.tapAcc += amount + wish;
     s.stats.clicks++;
     s.stats.runClicks++;
     s.stats.clickEarned = safe(s.stats.clickEarned + amount);
@@ -461,6 +470,15 @@ export class Game {
     const s = this.s;
     const m = this.mods;
     s.stats.playTime += dt;
+    // Fold this tick's tap earnings into a ~1s rolling rate, so the display
+    // climbs while you tap and eases back down when you stop.
+    if (dt > 0) {
+      const k = 1 - Math.exp(-dt / 1);
+      this.tapRate += (this.tapAcc / dt - this.tapRate) * k;
+      // Once you've stopped, drop the leftover tail instead of showing crumbs.
+      if (this.tapAcc === 0 && this.tapRate < Math.max(1e-6, this.cps * 0.03)) this.tapRate = 0;
+      this.tapAcc = 0;
+    }
     s.stats.runTime += dt;
     s.lastPurchaseAge += dt;
 
@@ -498,6 +516,7 @@ export class Game {
         const echo = m.clickBase * m.clickMult * this.comboMult() * this.buffMult('clickstorm') * this.buffMult('flare') * (this.event?.click ?? 1);
         const expected = safe(echo * (1 + this.critChance() * (m.critMult - 1)));
         this.earn(expected * n);
+        this.tapAcc += expected * n;
         s.stats.clickEarned = safe(s.stats.clickEarned + expected * n);
       }
     }
