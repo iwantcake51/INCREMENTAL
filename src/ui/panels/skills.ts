@@ -31,7 +31,6 @@ export class SkillsPanel implements Panel {
   private minY = 0;
   private width = 0;
   private height = 0;
-  private placed = false;
   private detailKey = '';
 
   constructor(private game: Game) {
@@ -41,7 +40,10 @@ export class SkillsPanel implements Panel {
     this.shardsEl = bar.querySelector('.tree-shards span')!;
     this.noteEl = bar.querySelector('.view-sub')!;
     const center = h('button', { class: 'btn btn-ghost btn-sm', type: 'button' }, `${ic('compass')} Center`);
-    center.addEventListener('click', () => this.fit(true));
+    center.addEventListener('click', () => {
+      this.userMoved = false;
+      this.fit(true);
+    });
     bar.append(center);
 
     this.buildGraph();
@@ -56,9 +58,10 @@ export class SkillsPanel implements Panel {
     this.tree.append(zoom, legend);
     this.el.append(bar, this.tree, this.detail);
     this.bindPanZoom();
+    // Keep the default framing correct as the layout settles (fonts, the detail panel,
+    // rotating a phone) until the player pans or zooms themselves.
     new ResizeObserver(() => {
-      if (!this.placed && this.tree.clientWidth > 0) {
-        this.placed = true;
+      if (!this.userMoved && this.tree.clientWidth > 0) {
         this.fit(false);
       }
     }).observe(this.tree);
@@ -141,9 +144,14 @@ export class SkillsPanel implements Panel {
         'aria-label': s.name,
       }) as HTMLButtonElement;
       node.innerHTML = `${ic(s.icon)}<span class="node-lvl"></span>`;
+      let lastClick = 0;
       node.addEventListener('click', (e) => {
         if (this.dragMoved) return;
-        if (this.selected === s.id || e.shiftKey) this.learn(s.id);
+        const now = performance.now();
+        const quickSecond = now - lastClick < 450;
+        lastClick = now;
+        // Shift-click, a double-click, or clicking the node that's already selected grows it.
+        if (e.shiftKey || quickSecond || this.selected === s.id) this.learn(s.id);
         this.select(s.id);
       });
       tip(node, () => this.tipFor(s));
@@ -205,6 +213,8 @@ export class SkillsPanel implements Panel {
 
   /* ------------------------------------------------------------ pan / zoom */
   private dragMoved = false;
+  /** Set once the player pans or zooms; stops automatic re-framing. */
+  private userMoved = false;
   private bindPanZoom(): void {
     const pointers = new Map<number, { x: number; y: number }>();
     let start = { x: 0, y: 0, vx: 0, vy: 0 };
@@ -212,7 +222,8 @@ export class SkillsPanel implements Panel {
     this.tree.addEventListener('pointerdown', (e) => {
       if ((e.target as Element).closest('.tree-zoom')) return;
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      this.tree.setPointerCapture(e.pointerId);
+      // Don't capture the pointer yet: capturing on press would retarget the click
+      // away from the node under the cursor, so nodes could never be clicked.
       this.dragMoved = false;
       start = { x: e.clientX, y: e.clientY, vx: this.view.x, vy: this.view.y };
       if (pointers.size === 2) {
@@ -232,12 +243,15 @@ export class SkillsPanel implements Panel {
         }
         pinch = d;
         this.dragMoved = true;
+        for (const id of pointers.keys()) if (!this.tree.hasPointerCapture(id)) this.tree.setPointerCapture(id);
         return;
       }
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
       if (!this.dragMoved && Math.hypot(dx, dy) < 5) return;
+      if (!this.dragMoved && !this.tree.hasPointerCapture(e.pointerId)) this.tree.setPointerCapture(e.pointerId);
       this.dragMoved = true;
+      this.userMoved = true;
       this.tree.classList.add('dragging');
       this.view.x = start.vx + dx;
       this.view.y = start.vy + dy;
@@ -268,6 +282,7 @@ export class SkillsPanel implements Panel {
   }
 
   private zoomAt(factor: number, cx = this.tree.clientWidth / 2, cy = this.tree.clientHeight / 2): void {
+    this.userMoved = true;
     const k = Math.min(1.8, Math.max(0.3, this.view.k * factor));
     const f = k / this.view.k;
     this.view.x = cx - (cx - this.view.x) * f;
@@ -276,16 +291,16 @@ export class SkillsPanel implements Panel {
     this.apply();
   }
 
-  /** Frame the lower tree: trunk at the bottom, the first few forks in view. */
+  /** Frame the lower tree: the root sits near the bottom of the view, first forks above it. */
   private fit(animate: boolean): void {
     const w = this.tree.clientWidth;
     const hh = this.tree.clientHeight;
     if (!w || !hh) return;
-    const k = Math.min(1, Math.max(0.45, Math.min(w / (16.5 * UNIT), hh / (8 * UNIT))));
-    // world point (0, -2.6) in the middle of the view
-    const cx = (0 * UNIT - this.minX) * k;
-    const cy = (-2.6 * UNIT - this.minY) * k;
-    this.view = { k, x: w / 2 - cx, y: hh / 2 - cy + hh * 0.08 };
+    // Show roughly the trunk plus four rows of branches, and the full width where possible.
+    const k = Math.min(1, Math.max(0.4, Math.min(w / (16.5 * UNIT), (hh * 0.8) / (5.2 * UNIT))));
+    const rootX = (0 - this.minX) * k;
+    const rootY = (0 - this.minY) * k;
+    this.view = { k, x: w / 2 - rootX, y: hh * 0.84 - rootY };
     if (animate) {
       this.canvas.style.transition = 'transform .45s cubic-bezier(.22,1,.36,1)';
       setTimeout(() => (this.canvas.style.transition = ''), 460);
@@ -299,8 +314,7 @@ export class SkillsPanel implements Panel {
   }
 
   onShow(): void {
-    if (!this.placed && this.tree.clientWidth > 0) {
-      this.placed = true;
+    if (!this.userMoved && this.tree.clientWidth > 0) {
       this.fit(false);
     }
   }
