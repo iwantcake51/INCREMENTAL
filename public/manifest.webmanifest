@@ -1,0 +1,10 @@
+{
+  "name": "Lanterndeep",
+  "short_name": "Lanterndeep",
+  "description": "Tap the lure. Light up the deep.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#04141a",
+  "theme_color": "#04141a",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

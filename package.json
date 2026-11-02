@@ -1,0 +1,27 @@
+{
+  "name": "lanterndeep",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Lanterndeep: a bioluminescent deep-sea idle game.",
+  "scripts": {
+    "icons": "node tools/build-icons.mjs",
+    "predev": "node tools/build-icons.mjs",
+    "dev": "vite",
+    "prebuild": "node tools/build-icons.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@iconify-json/game-icons": "^1.2.4",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource/young-serif": "^5.3.0"
+  }
+}

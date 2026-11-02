@@ -1,0 +1,115 @@
+/**
+ * Every number that shapes a dive or the economy, derived from the sub shop, the Reef,
+ * pearls and finds. Recomputed only when one of those changes.
+ */
+export interface Mods {
+  // Sub
+  maxAir: number;
+  airDrain: number;
+  maxHull: number;
+  speed: number;
+  accel: number;
+  light: number;
+  magnet: number;
+  invuln: number;
+  startDepth: number;
+  // Abilities
+  dash: boolean;
+  dashCooldown: number;
+  dashPower: number;
+  dashCharges: number;
+  dashRam: boolean;
+  dashAir: number;
+  flare: boolean;
+  flareCooldown: number;
+  flareRadius: number;
+  flarePull: boolean;
+  zapInterval: number;
+  sonar: number;
+  // Value
+  lumenMult: number;
+  moteMult: number;
+  fishMult: number;
+  fishFlee: number;
+  chestMult: number;
+  chestRate: number;
+  chestPearl: number;
+  chestRepair: boolean;
+  airBubble: number;
+  depthBonus: number;
+  streakCap: number;
+  streakPer: number;
+  streakWindow: number;
+  keepOnBreach: number;
+  bankBonus: number;
+  anglerDamage: number;
+  eventRate: number;
+  // Economy
+  farmLevel: number;
+  farmMult: number;
+  offlineEff: number;
+  offlineCapH: number;
+  pearlMult: number;
+  pearlExp: number;
+  pearlPer: number;
+  achPer: number;
+  startLumen: number;
+  keepShop: number;
+  depthPearls: boolean;
+  recordBonus: number;
+}
+
+export function baseMods(): Mods {
+  return {
+    maxAir: 25,
+    airDrain: 1,
+    maxHull: 3,
+    speed: 1,
+    accel: 1,
+    light: 1,
+    magnet: 40,
+    invuln: 1.2,
+    startDepth: 0,
+    dash: false,
+    dashCooldown: 4,
+    dashPower: 1,
+    dashCharges: 1,
+    dashRam: false,
+    dashAir: 0,
+    flare: false,
+    flareCooldown: 18,
+    flareRadius: 260,
+    flarePull: false,
+    zapInterval: 0,
+    sonar: 0,
+    lumenMult: 1,
+    moteMult: 1,
+    fishMult: 1,
+    fishFlee: 1,
+    chestMult: 1,
+    chestRate: 1,
+    chestPearl: 0,
+    chestRepair: false,
+    airBubble: 1,
+    depthBonus: 0,
+    streakCap: 30,
+    streakPer: 0.02,
+    streakWindow: 1.3,
+    keepOnBreach: 0.5,
+    bankBonus: 0,
+    anglerDamage: 2,
+    eventRate: 0.3,
+    farmLevel: 0,
+    farmMult: 1,
+    offlineEff: 0.5,
+    offlineCapH: 8,
+    pearlMult: 1,
+    pearlExp: 0.4,
+    pearlPer: 0.05,
+    achPer: 0.01,
+    startLumen: 0,
+    keepShop: 0,
+    depthPearls: false,
+    recordBonus: 0,
+  };
+}
