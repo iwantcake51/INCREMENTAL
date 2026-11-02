@@ -60,9 +60,17 @@ npm run build     # type-check and build to dist/
 
 `npm run icons` regenerates `src/ui/icons.gen.ts`, which contains only the icons the game references. It also runs automatically before `dev` and `build`.
 
-## Deploy
+## Deploy (Netlify)
 
-`.github/workflows/deploy.yml` builds and publishes `dist/` to GitHub Pages on every push to `main`. Enable it under **Settings → Pages → Source: GitHub Actions**. The build uses relative paths, so it also works on itch.io or any static host.
+`netlify.toml` is already set up, so Netlify needs no manual configuration:
+
+- **Build command:** `npm run build`
+- **Publish directory:** `dist`
+- **Node:** 22
+
+In Netlify, choose **Add new site → Import an existing project**, pick this repository, and deploy. Netlify reads the settings from `netlify.toml`. Every push to `main` redeploys, and pull requests get deploy previews. Hashed assets are cached forever and `index.html` always revalidates, so players get updates right away. The build uses relative paths, so it also works on any other static host.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the tests and a build on every pull request.
 
 ## Credits
 
