@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
-import { BAR_NAMES, CERES, MOONS, PLANETS, SUN } from "../../data/bodies";
+import { BAR_NAMES, CERES, COMETS, MOONS, PLANETS, SUN } from "../../data/bodies";
+import { CRAFT, MOON_INFO } from "../../data/spacecraft";
+import { longDateOf, dayFromISO } from "../../sim/time";
 import { FACTIONS } from "../../data/timeline";
 import { distanceAU } from "../../sim/orbits";
 import { ctl } from "../ctl";
@@ -16,7 +18,8 @@ function Vignette({ kind }: { kind: string }) {
   useEffect(() => {
     let raf = 0;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const loop = (t: number) => { if (ref.current) drawVignette(ref.current, kind, reduced ? 0 : t / 1000); raf = requestAnimationFrame(loop); };
+    const w = ctl().world;
+    const loop = (t: number) => { if (ref.current) drawVignette(ref.current, kind, reduced ? 0 : t / 1000, { day: w.day, daysPerSec: w.playing ? w.speed : 0 }); raf = requestAnimationFrame(loop); };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [kind]);
@@ -28,6 +31,45 @@ export function PlanetPanel() {
   const c = ctl(), w = c.world;
   const id = selected.value;
   const b = w.bodies.get(id);
+  const comet = COMETS.find(k => k.id === id);
+  if (comet) {
+    return (
+      <div class="panel-body">
+        <div class="planet-head"><div><div class="kicker">Comet</div><h2 class="title">{comet.name}</h2></div>
+          <button class="btn small" onClick={() => c.engine.focus(id)}>Fly to</button></div>
+        <p class="lead">{comet.blurb}</p>
+        <dl class="facts">{comet.facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+        <p class="hint">Its tails always point away from the Sun: a straight blue tail of gas pushed by the solar wind, and a curved, pale tail of dust.</p>
+      </div>
+    );
+  }
+  const craft = CRAFT.find(c => c.id === id);
+  if (!b && craft) {
+    const status = craft.end && dayFromISO(craft.end) <= w.day ? `Ended ${longDateOf(dayFromISO(craft.end))}${craft.endNote ? `. ${craft.endNote}` : ""}`
+      : craft.arrive && dayFromISO(craft.arrive) > w.day ? `On its way, arriving ${longDateOf(dayFromISO(craft.arrive))}` : craft.kind === "landing" ? "On the surface" : "Active";
+    const kind = { satellite: "Satellite", station: "Space station", telescope: "Space telescope", probe: "Robotic probe", landing: "Landing site" }[craft.kind];
+    const where = craft.body === "sun-l2" ? "Sun–Earth L2, 1.5 million km from Earth" : w.bodies.get(craft.body)?.name;
+    return (
+      <div class="panel-body">
+        <div class="planet-head">
+          <div><div class="kicker">{kind} · {where}</div><h2 class="title">{craft.name}</h2></div>
+          <button class="btn small" onClick={() => c.engine.focus(id)}>Fly to</button>
+        </div>
+        <p class="lead">{craft.purpose}</p>
+        <dl class="facts">
+          <div><dt>Launched</dt><dd>{longDateOf(dayFromISO(craft.launch))}</dd></div>
+          {craft.arrive && craft.kind !== "landing" && <div><dt>Arrived</dt><dd>{longDateOf(dayFromISO(craft.arrive))}</dd></div>}
+          {craft.kind === "landing" && craft.arrive && <div><dt>Landed</dt><dd>{longDateOf(dayFromISO(craft.arrive))}</dd></div>}
+          <div><dt>Built by</dt><dd>{craft.operator}</dd></div>
+          <div><dt>Mass</dt><dd>{craft.massKg.toLocaleString("en-US")} kg ({Math.round(craft.massKg * 2.20462).toLocaleString("en-US")} lb)</dd></div>
+          {craft.site && <div><dt>Site</dt><dd>{Math.abs(craft.site.lat).toFixed(1)}° {craft.site.lat >= 0 ? "N" : "S"}, {Math.abs(craft.site.lon).toFixed(1)}° {craft.site.lon >= 0 ? "E" : "W"}</dd></div>}
+          <div><dt>Status</dt><dd>{status}</dd></div>
+        </dl>
+        <ul class="trivia">{craft.facts.map(f => <li key={f}>{toF(f)}</li>)}</ul>
+        <div class="src">Real mission data</div>
+      </div>
+    );
+  }
   if (!b) {
     const name = id === "ark" ? "Generation ship" : id === "voyager1" ? "Voyager 1" : "Voyager 2";
     return (
@@ -51,7 +93,7 @@ export function PlanetPanel() {
   return (
     <div class="panel-body">
       <div class="planet-head">
-        <Globe color={b.color} size={52} ring={id === "saturn"} glow={id === "sun"} />
+        <Globe id={id} color={b.color} size={60} ring={id === "saturn"} glow={id === "sun"} />
         <div>
           <div class="kicker">{kindText}</div>
           <h2 class="title">{b.name}</h2>
@@ -68,6 +110,24 @@ export function PlanetPanel() {
         </div>
       )}
       {blurb && <p class="lead">{blurb}</p>}
+      {(moon || id === "ceres") && (
+        <dl class="facts">
+          <div><dt>Diameter</dt><dd>{Math.round(b.radiusKm * 2).toLocaleString("en-US")} km ({Math.round(b.radiusKm * 2 * 0.6214).toLocaleString("en-US")} mi)</dd></div>
+          {moon && <div><dt>Distance from {w.bodies.get(moon.parent)!.name}</dt><dd>{moon.aKm.toLocaleString("en-US")} km</dd></div>}
+          {moon && <div><dt>One orbit</dt><dd>{Math.abs(moon.period) < 2 ? `${(Math.abs(moon.period) * 24).toFixed(1)} hours` : `${Math.abs(moon.period).toFixed(1)} days`}{moon.period < 0 ? " (backwards)" : ""}</dd></div>}
+          {id === "ceres" && <div><dt>One orbit</dt><dd>4.6 years</dd></div>}
+          {MOON_INFO[id] && <div><dt>Discovered</dt><dd>{MOON_INFO[id].discovered}</dd></div>}
+          {MOON_INFO[id] && <div class="wide"><dt>Formed</dt><dd>{MOON_INFO[id].formed}</dd></div>}
+        </dl>
+      )}
+      {(() => {
+        const here = CRAFT.filter(k => (k.body === id || (id === "earth" && k.body === "sun-l2")) && c.engine.craft.get(k.id)?.active);
+        return here.length > 0 && (
+          <Section title={id === "earth" ? "Spacecraft here now" : "Spacecraft here"}>
+            <div class="chips">{here.map(k => <button key={k.id} class="chip" onClick={() => c.select(k.id)}>{k.name}</button>)}</div>
+          </Section>
+        );
+      })()}
 
       {(colony || tf > 0) && (
         <Section title="Civilization" aside={<span class="tag-proj">projected</span>}>

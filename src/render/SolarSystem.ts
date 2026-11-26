@@ -8,8 +8,10 @@ import { eclipticDir, eclipticToScene, heliocentric } from "../sim/orbits";
 import type { ScaleMode } from "../sim/scale";
 import type { World } from "../sim/world";
 import { GLOW } from "./Effects";
-import { HEIGHT_SCALE, type BodyMaps } from "./textures";
+import { DISPLACE, HEIGHT_SCALE, type BodyMaps } from "./textures";
 import { DAY_MS, J2000 } from "../sim/time";
+import { craterLifetime } from "../sim/impacts";
+import { COLONY_GROWTH, SETTLEMENT_SITES } from "../data/timeline";
 import { atmosphereMaterial, cloudMaterial, planetMaterial, ringMaterial } from "./shaders/planet";
 import { coronaMaterial, milkyWayMaterial, orbitLineMaterial, orbitPointsMaterial, starMaterial, sunMaterial } from "./shaders/space";
 
@@ -120,6 +122,7 @@ export class SolarSystem {
     tilt.quaternion.setFromUnitVectors(UP, b.axis);
     root.add(tilt); tilt.add(spin);
     const mat = planetMaterial(look, b.radius);
+    mat.uniforms.uDisplace.value = DISPLACE[b.id] ?? 0;
     const mesh = new Mesh(geo, mat);
     mesh.scale.setScalar(b.radius);
     spin.add(mesh);
@@ -191,6 +194,7 @@ export class SolarSystem {
     if (maps.night) { u.uNight.value = maps.night; u.uHasNight.value = 1; }
     if (maps.ocean) { u.uOcean.value = maps.ocean; u.uHasOcean.value = 1; }
     if (maps.height) { u.uHeight.value = maps.height; u.uHasHeight.value = 1; u.uHeightScale.value = HEIGHT_SCALE[id] ?? 0.006; }
+    if (maps.gray) u.uGray.value = 1;
     if (maps.clouds && v.clouds) {
       const cu = (v.clouds.material as ShaderMaterial).uniforms;
       cu.uMap.value = maps.clouds; cu.uHasMap.value = 1;
@@ -273,6 +277,30 @@ export class SolarSystem {
       // Light directions in the body's own (rotating) frame, for terrain shadows.
       tmpQ.copy(v.tilt.quaternion).multiply(v.spin.quaternion).invert();
       u.uSunObj.value.copy(b.pos).negate().normalize().applyQuaternion(tmpQ);
+      // Craters on this world
+      const craters = world.impacts.craters.filter(c => c.body === b.id).slice(-10);
+      u.uImpactCount.value = craters.length;
+      const gas = b.look?.surface === "gas" || b.look?.surface === "ice";
+      craters.forEach((c, k) => {
+        const age = Math.max(0, ctx.year - c.year), life = craterLifetime(b.id);
+        u.uImpacts.value[k].set(c.dir[0], c.dir[1], c.dir[2], c.size);
+        u.uImpactInfo.value[k].set(
+          1 - Math.min(1, age / life) ** 2,
+          Math.max(0, 1 - age / (life * 0.4)),
+          Math.max(Math.exp(-age / 4), Math.exp(-c.realAge / 5)) * (c.size > 0.02 ? 1 : 0.5),
+          gas ? 1 : 0);
+      });
+      // Settlement lights spread outward from the first base
+      const col = world.civ.colonies.find(c => c.active && c.body === b.id && b.id !== "earth");
+      const site = SETTLEMENT_SITES[b.id];
+      if (col && site) {
+        const la = (site[0] * Math.PI) / 180, lo = (site[1] * Math.PI) / 180;
+        const age = Math.max(0, ctx.year - col.y) * (COLONY_GROWTH[col.id] ?? 1);
+        u.uCitySite.value.set(Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo), 0.04 + Math.min(1.4, Math.pow(age / 160, 0.8) * 1.4));
+      } else u.uCitySite.value.w = 0;
+      // Eclipses (only meaningful while the Moon is in its real position)
+      if (b.id === "earth") u.uOccluder.value.set(moonBody.pos.x, moonBody.pos.y, moonBody.pos.z, moonBody.radius * 1.05);
+      else if (b.id === "moon") u.uOccluder.value.set(earthBody.pos.x, earthBody.pos.y, earthBody.pos.z, moonBody.orbitR * 0.021);
       if (b.id === "earth") {
         u.uMoonPos.value.copy(moonBody.pos);
         u.uMoonObj.value.subVectors(moonBody.pos, b.pos).normalize().applyQuaternion(tmpQ);

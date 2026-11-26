@@ -8,7 +8,7 @@ export const dayNow = () => (Date.now() - J2000) / DAY_MS;
 export const yearOf = (day: number) => 2000 + day / DAYS_PER_YEAR;
 export const dayOfYear = (year: number) => (year - 2000) * DAYS_PER_YEAR;
 
-export const MIN_DAY = dayFromDate(1950);
+export const MIN_DAY = dayFromDate(1944);
 export const MAX_DAY = dayFromDate(2600, 12, 31);
 
 export const isoOf = (day: number) => new Date(J2000 + day * DAY_MS).toISOString().slice(0, 10);

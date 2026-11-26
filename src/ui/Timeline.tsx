@@ -4,7 +4,7 @@ import { dayOfYear, yearOf } from "../sim/time";
 import { ctl } from "./ctl";
 import { tick } from "./store";
 
-const Y0 = 1950, Y1 = 2600;
+const Y0 = 1944, Y1 = 2600;
 const pct = (y: number) => ((y - Y0) / (Y1 - Y0)) * 100;
 
 /** A scrubbable timeline: drag to travel in time. Shows milestones, wars and today. */
@@ -35,7 +35,7 @@ export function Timeline() {
         <span class="tl-now" style={{ left: `${pct(nowY)}%` }} title="Today" />
         <span class="tl-head" style={{ left: `${pct(w.year)}%` }} />
       </div>
-      <div class="tl-labels"><span>1950</span><span>today</span><span>2600</span></div>
+      <div class="tl-labels"><span>1944</span><span>today</span><span>2600</span></div>
       {hoverY !== null && (
         <div class="tl-tip" style={{ left: `${pct(hoverY)}%` }}>
           <b>{Math.floor(hoverY)}</b>{hoverEra ? ` · ${hoverEra.name}` : ""}{hoverY > nowY ? " (projected)" : ""}

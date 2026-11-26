@@ -2,11 +2,12 @@
 // You earn Influence as civilization grows. Total Influence earned raises your rank, and each rank unlocks
 // new powers. Goals give bonus Influence and point you toward things worth trying.
 
-import { FACTIONS } from "../data/timeline";
+import { eraYear, FACTIONS, warStartYear } from "../data/timeline";
 import type { Civ } from "./civ";
 import type { NewsFeed } from "./news";
 import type { EventBus } from "./events";
 import { yearOf } from "./time";
+import type { Impacts } from "./impacts";
 
 export const RANKS = [
   { name: "Watcher", at: 0, blurb: "You can see everything, and nudge a little." },
@@ -16,7 +17,7 @@ export const RANKS = [
   { name: "Demiurge", at: 1200, blurb: "Even the Sun answers to you." },
 ] as const;
 
-export type PowerTarget = "none" | "pair" | "faction" | "war" | "colonySite" | "terraform";
+export type PowerTarget = "none" | "pair" | "faction" | "war" | "colonySite" | "terraform" | "body";
 
 export interface Power {
   id: string;
@@ -45,8 +46,12 @@ export const POWERS: Power[] = [
     desc: "Make two powers declare war on each other right now." },
   { id: "colony", name: "Plant a colony", icon: "home", rank: 2, cost: 70, target: "colonySite", from: 2045,
     desc: "Found a settlement on an unclaimed world for the power of your choice." },
+  { id: "asteroid", name: "Asteroid strike", icon: "flame", rank: 2, cost: 50, target: "body", from: 1944,
+    desc: "Steer a 1 km asteroid into any world. It leaves a scorched crater that fades over centuries, and wrecks any colony it hits." },
   { id: "terraform", name: "Terraform", icon: "seedling", rank: 3, cost: 140, target: "terraform", from: 1957,
     desc: "Over about 60 years, give a world air, seas and plant life. Watch it turn blue and green." },
+  { id: "extinction", name: "Extinction-class impact", icon: "bolt", rank: 4, cost: 220, target: "body", from: 1944,
+    desc: "A 10 km asteroid, like the one that ended the dinosaurs. Blasts a huge basin and ruins any settlement on that world for decades." },
   { id: "dyson", name: "Kindle the swarm", icon: "ringed", rank: 4, cost: 250, target: "none", from: 1957,
     desc: "Start the Dyson swarm early. Collectors begin circling the Sun now." },
 ];
@@ -64,8 +69,8 @@ export interface Goal {
 
 export const GOALS: Goal[] = [
   { id: "power", name: "First miracle", desc: "Use any god power.", reward: 10 },
-  { id: "luna", name: "A foothold", desc: "Reach 2032, when the first Moon base opens.", reward: 20 },
-  { id: "mars", name: "Red frontier", desc: "Reach 2045 and watch the first Mars settlement land.", reward: 25 },
+  { id: "luna", name: "A foothold", desc: "Watch the first permanent Moon base open (early 2030s).", reward: 20 },
+  { id: "mars", name: "Red frontier", desc: "Watch the first Mars settlement land (mid 2040s).", reward: 25 },
   { id: "firstwar", name: "The first war", desc: "See a war break out (or start one).", reward: 25 },
   { id: "bless", name: "Chosen people", desc: "Bless a power.", reward: 15 },
   { id: "peacemaker", name: "Peacemaker", desc: "End a war with Impose peace.", reward: 40 },
@@ -73,24 +78,24 @@ export const GOALS: Goal[] = [
   { id: "longpeace", name: "Golden age", desc: "Keep 40 years without any war after 2060.", reward: 80 },
   { id: "green", name: "Second Earth", desc: "Fully terraform any world.", reward: 120 },
   { id: "balance", name: "Balance of power", desc: "Reach 2300 with all five powers still holding colonies.", reward: 120 },
-  { id: "stars", name: "To the stars", desc: "Reach 2520, when the first starship leaves.", reward: 150 },
+  { id: "stars", name: "To the stars", desc: "See the first starship leave the solar system (around 2520).", reward: 150 },
 ];
 
-export interface GodSnapshot { influence: number; earned: number; goals: string[]; terraform: Record<string, { start: number; done?: boolean }>; uses: Record<string, number>; dysonFrom: number | null; lastWarYear: number }
+export interface GodSnapshot { influence: number; earned: number; goals: string[]; terraform: Record<string, { start: number; dur?: number; done?: boolean }>; uses: Record<string, number>; dysonFrom: number | null; lastWarYear: number }
 
 export class God {
   influence = 25;
   earned = 25;
   goals = new Set<string>();
   /** Terraforming jobs: body → start year. Progress takes 60 years. */
-  terraform: Record<string, { start: number; done?: boolean }> = {};
+  terraform: Record<string, { start: number; dur?: number; done?: boolean }> = {};
   uses: Record<string, number> = {};
   /** Year the Dyson swarm starts if kindled early. */
   dysonFrom: number | null = null;
   lastWarYear = 2060;
   version = 0;
 
-  constructor(private civ: Civ, private news: NewsFeed, private bus: EventBus) {}
+  constructor(private civ: Civ, private news: NewsFeed, private bus: EventBus, private impacts: Impacts) {}
 
   get rank() { let r = 0; RANKS.forEach((k, i) => { if (this.earned >= k.at) r = i; }); return r; }
   costOf(p: Power) { return Math.round(p.cost * (1 + 0.25 * (this.uses[p.id] ?? 0))); }
@@ -98,8 +103,8 @@ export class God {
   /** 0–1 terraforming progress for a body at the given year (Mars also terraforms on its own from 2350). */
   terraformLevel(body: string, year: number) {
     const job = this.terraform[body];
-    let v = job ? clamp01((year - job.start) / 60) : 0;
-    if (body === "mars") v = Math.max(v, clamp01((year - 2350) / 120));
+    let v = job ? clamp01((year - job.start) / (job.dur ?? 60)) : 0;
+    if (body === "mars") v = Math.max(v, clamp01((year - eraYear("terraform")) / 120));
     return v;
   }
 
@@ -115,13 +120,14 @@ export class God {
     if (atWar) this.lastWarYear = year;
     else if (year < 2060) this.lastWarYear = 2060;
 
-    const check = (id: string, ok: boolean) => { if (ok && !this.goals.has(id)) this.complete(id, day); };
-    check("luna", year >= 2032);
-    check("mars", year >= 2045);
+    const live = dtDays < 60;
+    const check = (id: string, ok: boolean) => { if (ok && !this.goals.has(id)) this.complete(id, day, live); };
+    check("luna", this.civ.colony("luna").active);
+    check("mars", this.civ.colony("mars").active);
     check("firstwar", atWar);
     check("longpeace", year >= 2100 && year - this.lastWarYear >= 40);
     check("balance", year >= 2300 && FACTIONS.every(f => this.civ.coloniesOf(f.id).length > 0));
-    check("stars", year >= 2520);
+    check("stars", year >= eraYear("ark"));
     for (const [body, job] of Object.entries(this.terraform)) {
       if (!job.done && this.terraformLevel(body, year) >= 1) {
         job.done = true;
@@ -131,18 +137,19 @@ export class God {
     }
   }
 
-  private complete(id: string, day: number) {
+  private complete(id: string, day: number, toast = true) {
     const g = GOALS.find(x => x.id === id)!;
     this.goals.add(id);
     this.influence += g.reward; this.earned += g.reward;
     this.version++;
-    this.bus.emit({ type: "news", toast: true, item: { id: -1, day, cat: "milestone", title: `Goal complete: ${g.name}`, body: `+${g.reward} Influence. ${g.desc}` } });
+    this.bus.emit({ type: "news", toast, item: { id: -1, day, cat: "milestone", title: `Goal complete: ${g.name}`, body: `+${g.reward} Influence. ${g.desc}` } });
   }
 
   /** Which powers can be used right now, and why not if not. */
   availability(p: Power, year: number): string | null {
     if (this.rank < p.rank) return `Unlocks at rank ${RANKS[p.rank].name}`;
-    if (p.from && year < p.from) return `Available from ${p.from}`;
+    const from = p.from === 2060 ? warStartYear() : p.from;
+    if (from && year < from) return from >= 2045 ? `Available once ${from === warStartYear() ? "warships exist" : "colonies exist"} (~${from})` : `Available from ${from}`;
     if (this.influence < this.costOf(p)) return "Not enough Influence";
     if (p.id === "peace" && !this.civ.wars.length) return "No wars to end";
     if (p.id === "dyson" && (this.dysonFrom !== null || year >= 2400)) return "The swarm is already growing";
@@ -170,10 +177,12 @@ export class God {
       case "terraform": {
         const body = a as string;
         if (this.terraform[body] || this.terraformLevel(body, year) > 0) return "Already terraforming";
-        this.terraform[body] = { start: year };
+        this.terraform[body] = { start: year, dur: 48 + Math.random() * 30 };
         this.news.add({ day, cat: "milestone", focus: body, title: `Terraforming ${cap(body)} begins`, body: "Comets are steered in for water, and engineered microbes thicken the air. It will take about 60 years." });
         break;
       }
+      case "asteroid": this.impacts.launch(a as string, "large", "God strike"); break;
+      case "extinction": this.impacts.launch(a as string, "huge", "God strike"); break;
       case "dyson": this.dysonFrom = year; this.news.add({ day, cat: "milestone", focus: "sun", major: true, title: "The Dyson swarm begins early", body: "The first solar collectors start circling the Sun, centuries ahead of schedule." }); break;
     }
     const cost = this.costOf(p);

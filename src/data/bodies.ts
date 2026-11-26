@@ -265,3 +265,15 @@ export const CERES = {
 };
 
 export const BAR_NAMES = ["Temperature", "Liquid water", "Atmosphere"] as const;
+
+/** Real comets. Elements from JPL Small-Body Database (perihelion dates: Halley 1986-02-09, Hale–Bopp 1997-04-01). */
+export const COMETS = [
+  { id: "halley", name: "Halley's Comet", radiusKm: 5.5,
+    orbit: { a: 17.834, e: 0.96714, i: 162.26, node: 58.42, peri: 169.75, L0: 236.15, T: 27510 } as Elements,
+    facts: [["Nucleus", "15 × 8 km"], ["Orbit", "76 years"], ["Last perihelion", "9 Feb 1986"], ["Next perihelion", "28 Jul 2061"]] as [string, string][],
+    blurb: "The most famous comet, seen by people every 76 years for at least 2,200 years. Its orbit runs backwards around the Sun. Spacecraft from Europe, Japan and the USSR flew past it in 1986." },
+  { id: "halebopp", name: "Comet Hale–Bopp", radiusKm: 30,
+    orbit: { a: 186, e: 0.995086, i: 89.43, node: 282.47, peri: 53.06, L0: 53.45, T: 925178 } as Elements,
+    facts: [["Nucleus", "about 60 km across"], ["Orbit", "about 2,500 years"], ["Perihelion", "1 Apr 1997"], ["Visible to the eye", "18 months"]] as [string, string][],
+    blurb: "The Great Comet of 1997, visible to the naked eye for a record 18 months. Its nucleus is one of the largest ever seen." },
+];

@@ -5,6 +5,8 @@ export type Tab = "planet" | "god" | "wars" | "tech" | "news";
 
 /** Bumped ~8 times a second; components that show live numbers read it to re-render. */
 export const tick = signal(0);
+/** Bumped when planet portraits finish rendering. */
+export const thumbVersion = signal(0);
 export const selected = signal("earth");
 export const tab = signal<Tab>("planet");
 export const panelOpen = signal(typeof innerWidth === "number" ? innerWidth > 760 : true);

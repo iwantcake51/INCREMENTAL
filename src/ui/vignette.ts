@@ -1,6 +1,7 @@
 // Animated "life on this world" scenes for the planet panel (2D canvas), carried over from the original orrery.
 /* eslint-disable */
 import { toF } from "./units";
+import { drawEarthScene, type SceneEnv } from "./earthScene";
 let vx: CanvasRenderingContext2D;
 let VW = 0, VH = 0;
 const rnd = (seed => () => (seed = (seed * 16807) % 2147483647) / 2147483647)(42);
@@ -149,7 +150,7 @@ function neptune(ts: number, w: number, h: number){ iceWorld(ts, w, h, "#a9bfff"
 const SCENES: Record<string, (ts: number, w: number, h: number) => void> = { earth, mercury, venus, mars, europa, enceladus, uranus, neptune };
 
 /** Draw one frame of the scene for `kind` (a LifeInfo.kind) into the canvas. */
-export function drawVignette(canvas: HTMLCanvasElement, kind: string, ts: number) {
+export function drawVignette(canvas: HTMLCanvasElement, kind: string, ts: number, env?: SceneEnv) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -158,5 +159,14 @@ export function drawVignette(canvas: HTMLCanvasElement, kind: string, ts: number
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   vx = ctx; VW = w; VH = h;
   vx.clearRect(0, 0, w, h);
+  if (kind === "earth" && env) { drawEarthScene(ctx, w, h, ts, env); return; }
   (SCENES[kind] ?? mercury)(ts, w, h);
+  // Lens finish for every scene: soft vignette, depth haze and fine grain, so nothing looks flat
+  const haze = vx.createLinearGradient(0, 0, 0, h);
+  haze.addColorStop(0, "rgba(255,255,255,0.03)"); haze.addColorStop(0.55, "rgba(255,255,255,0)"); haze.addColorStop(1, "rgba(0,0,0,0.25)");
+  vx.fillStyle = haze; vx.fillRect(0, 0, w, h);
+  const vg = vx.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, w * 0.75);
+  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.42)");
+  vx.fillStyle = vg; vx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 140; i++) { vx.fillStyle = `rgba(255,255,255,${((Math.sin(i * 91.7 + Math.floor(ts * 12) * 13.1) * 43758.5) % 1 + 1) % 1 * 0.035})`; vx.fillRect(((i * 37.3 + ts * 97) % w), ((i * 71.9 + ts * 53) % h), 1, 1); }
 }

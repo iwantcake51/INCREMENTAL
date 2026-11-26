@@ -31,6 +31,9 @@ function run(seed: number, toYear: number, speed = 365.25) {
 describe("civilization", () => {
   it("adds real history news on real dates", () => {
     const w = new World(1);
+    expect(w.news.items.some(n => n.title.includes("Sputnik"))).toBe(false);
+    w.setDay(dayFromISO("1960-01-01"));
+    w.step(0);
     expect(w.news.items.some(n => n.title.includes("Sputnik"))).toBe(true);
     expect(w.news.items.every(n => n.day <= w.day)).toBe(true);
   });

@@ -1,4 +1,4 @@
-import { BackSide, Color, ShaderMaterial, AdditiveBlending, Vector3, type IUniform } from "three";
+import { BackSide, Color, ShaderMaterial, AdditiveBlending, Vector3, Vector4, type IUniform } from "three";
 import type { Look } from "../../data/bodies";
 import { NOISE } from "./noise";
 
@@ -48,9 +48,23 @@ float faintRing(float r, float inner, float outer){
 }
 `;
 
+// Cheap value noise for vertex displacement.
+const NOISE_LITE = /* glsl */ `
+float hashLite(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float snoiseLite(vec3 p){
+  vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  float n = mix(mix(mix(hashLite(i), hashLite(i + vec3(1,0,0)), f.x), mix(hashLite(i + vec3(0,1,0)), hashLite(i + vec3(1,1,0)), f.x), f.y),
+                mix(mix(hashLite(i + vec3(0,0,1)), hashLite(i + vec3(1,0,1)), f.x), mix(hashLite(i + vec3(0,1,1)), hashLite(i + vec3(1,1,1)), f.x), f.y), f.z);
+  return n * 2.0 - 1.0;
+}
+`;
+
 const VERT = /* glsl */ `
 #include <common>
 #include <logdepthbuf_pars_vertex>
+uniform float uDisplace, uHasHeight, uSeed;
+uniform sampler2D uHeight;
+${NOISE_LITE}
 varying vec3 vObj;
 varying vec3 vRel;
 varying vec3 vViewPos;
@@ -58,12 +72,25 @@ varying vec3 vNormalV;
 varying vec3 vEastV;
 varying vec3 vNorthV;
 void main(){
+  vec3 pos = position;
+  if (uDisplace > 0.0){
+    // Irregular small moons: push the surface in and out (real elevation for Phobos, noise otherwise).
+    vec3 dir = normalize(position);
+    float h;
+    if (uHasHeight > 0.5){
+      vec2 uv = vec2(0.5 + atan(-dir.z, dir.x) / 6.2831853, 0.5 + asin(clamp(dir.y, -1.0, 1.0)) / 3.14159265);
+      h = textureLod(uHeight, uv, 0.0).r - 0.5;
+    } else {
+      h = snoiseLite(dir * 1.3 + uSeed) * 0.6 + snoiseLite(dir * 3.1 + uSeed) * 0.25;
+    }
+    pos = dir * (1.0 + h * uDisplace * 2.0);
+  }
   vObj = position;
-  vRel = mat3(modelMatrix) * position;
+  vRel = mat3(modelMatrix) * pos;
   vec3 eastObj = normalize(vec3(position.z, 0.0, -position.x) + vec3(1e-6, 0.0, 0.0));
   vEastV = normalize(normalMatrix * eastObj);
   vNorthV = normalize(normalMatrix * cross(normalize(position), eastObj));
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   vViewPos = mv.xyz;
   vNormalV = normalize(normalMatrix * normal);
   gl_Position = projectionMatrix * mv;
@@ -80,9 +107,15 @@ uniform vec4 uStorm;
 uniform vec3 uStormColor, uAtmoColor, uSunPos, uCenter, uRingNormal;
 uniform float uAtmoDensity, uRadius, uRingInner, uRingOuter, uRingKind, uSunPower;
 uniform sampler2D uMap, uNight, uOcean, uHeight;
-uniform float uHasMap, uHasNight, uHasOcean, uHasHeight, uHeightScale, uMoonLight;
+uniform float uHasMap, uHasNight, uHasOcean, uHasHeight, uHeightScale, uMoonLight, uGray;
 uniform vec3 uSunObj, uMoonObj, uMoonPos;
 uniform vec2 uWinter;
+uniform vec4 uImpacts[10];
+uniform vec4 uImpactInfo[10];
+uniform int uImpactCount;
+uniform vec4 uOccluder;
+uniform vec4 uCitySite;   // xyz: where settlement began (body frame), w: how far it has spread (radians)
+uniform vec3 uOccTint;
 varying vec3 vEastV;
 varying vec3 vNorthV;
 varying vec3 vObj;
@@ -218,7 +251,9 @@ void main(){
       float v = pow(max(snoise(n * 4.5 + uSeed), 0.0), 5.0) * 6.0 * uVolcanoes;
       col = mix(col, vec3(0.08, 0.05, 0.03), clamp(v, 0.0, 1.0));
       col = mix(col, vec3(0.75, 0.25, 0.08), clamp(v - 0.7, 0.0, 1.0) * 0.8);
-      emissive += vec3(1.6, 0.35, 0.05) * smoothstep(0.85, 1.0, v) * uVolcanoes;
+      // Active lava lakes: small hot spots (Io has ~400 active volcanoes, but each glows over a tiny area).
+      float hot = pow(max(snoise(n * 22.0 + uSeed * 3.0), 0.0), 9.0) * smoothstep(0.5, 1.0, v + 0.5);
+      emissive += vec3(1.8, 0.4, 0.06) * clamp(hot * 40.0, 0.0, 1.0) * uVolcanoes * 0.8;
     }
   #endif
   if (uTerraform > 0.0){
@@ -322,6 +357,13 @@ void main(){
       if (uTerraform <= 0.0) { col = mapCol; h = dot(mapCol, vec3(0.33)) * 0.02; }
       else col = mix(mapCol, col, smoothstep(0.2, 0.9, uTerraform));
     #else
+      // Grayscale mosaics: tint to the world's real colors. Black no-data areas fall back to the procedural surface.
+      float rawLum = dot(mapCol, vec3(0.333));
+      if (uGray > 0.5) mapCol = mix(uColors[1] * 0.5, uColors[2] * 1.08, smoothstep(0.0, 0.9, sqrt(rawLum))) * (0.75 + 0.35 * sqrt(rawLum));
+      mapCol = mix(mapCol, col, 1.0 - smoothstep(0.004, 0.02, rawLum));
+      #if defined(SURF_HAZE)
+        mapCol = mix(col, col * (0.55 + 0.9 * sqrt(rawLum)), 0.45);
+      #endif
       float k = uTerraform > 0.0 ? smoothstep(0.0, 0.35, uTerraform) : 0.0;
       vec3 rocky = mapCol * (1.0 + (fine * 0.22 + h * 0.12) * close * close);
       col = mix(rocky, col, k);
@@ -358,6 +400,41 @@ void main(){
     doShadow = 1.0 / max(tpp, 1e-6) > 0.2;
     if (doShadow) shadow = mix(1.0, horizon(hUv, H0, uSunObj, n, lat, hLod), smoothstep(0.2, 0.6, 1.0 / max(tpp, 1e-6)) * relief);
   }
+  // ---- Impact craters: bowl, raised rim, ejecta, soot and burn rays, glowing melt. They fade with age. ----
+  vec3 craterGlow = vec3(0.0);
+  float lightsOut = 0.0;   // impact zones go dark until they are rebuilt
+  for (int i = 0; i < 10; i++){
+    if (i >= uImpactCount) break;
+    vec4 C = uImpacts[i];
+    vec4 I = uImpactInfo[i];         // x: scar strength, y: burn marks, z: molten glow, w: 1 = gas giant
+    float ang = acos(clamp(dot(n, C.xyz), -1.0, 1.0));
+    float t = ang / C.w;
+    if (t > 4.5) continue;
+    vec3 tang = normalize(n - C.xyz * dot(n, C.xyz) + 1e-6);
+    float tt = t + snoise(n * (3.0 / C.w) + float(i) * 7.1) * 0.1;
+    if (I.w > 0.5){
+      // Gas giants have no surface: a dark bruise in the clouds, with a faint ring, that winds smear out.
+      float spot = (1.0 - smoothstep(0.5, 1.5, tt)) * I.x;
+      col = mix(col, vec3(0.06, 0.04, 0.035), spot * 0.85);
+      col = mix(col, col * 0.75, smoothstep(1.7, 1.9, tt) * (1.0 - smoothstep(1.9, 2.4, tt)) * I.x * 0.6);
+      craterGlow += vec3(1.6, 0.6, 0.2) * I.z * (1.0 - smoothstep(0.0, 1.2, tt));
+      continue;
+    }
+    lightsOut = max(lightsOut, (1.0 - smoothstep(1.6, 3.2, tt)) * I.y);
+    float bowl = tt < 1.0 ? (tt * tt - 1.0) : 0.0;
+    float rim = exp(-pow((tt - 1.0) * 4.0, 2.0)) * 0.4;
+    float ejecta = tt > 1.0 ? exp(-(tt - 1.0) * 1.7) * 0.08 : 0.0;
+    h += (bowl * 0.45 + rim + ejecta) * C.w * 0.35 * I.x;
+    float rays = smoothstep(0.45, 0.85, snoise(tang * 9.0 + float(i) * 3.3) * 0.5 + 0.5) * (tt > 1.0 ? exp(-(tt - 1.0) * 0.9) : 1.0);
+    float soot = (1.0 - smoothstep(0.7, 2.6, tt)) * I.y;
+    vec3 burnt = mix(vec3(0.035, 0.026, 0.022), vec3(0.2, 0.16, 0.13), smoothstep(0.0, 2.5, tt));
+    col = mix(col, burnt, clamp(soot * 0.9 + rays * I.y * 0.45, 0.0, 1.0));
+    col = mix(col, col * vec3(0.8, 0.78, 0.76), (1.0 - smoothstep(0.0, 1.1, tt)) * I.x * 0.5);
+    spec *= 1.0 - (1.0 - smoothstep(0.8, 2.0, tt)) * I.x;
+    float melt = (1.0 - smoothstep(0.0, 0.95, tt)) * (0.7 + 0.3 * snoise(n * (6.0 / C.w) + float(i)));
+    craterGlow += mix(vec3(1.9, 0.5, 0.1), vec3(2.4, 1.4, 0.5), melt * I.z) * melt * I.z;
+  }
+
   if (uBump > 0.0) N = bumpNormal(vViewPos, N, h * uBump * uRadius);
 
   float rough = mix(0.9, 0.2, spec);
@@ -401,7 +478,21 @@ void main(){
   vec3 F = F0 + (1.0 - F0) * pow(1.0 - VdH, 5.0);
   vec3 specBRDF = D * G * F / max(4.0 * NdL * NdV, 1e-4);
   vec3 sunCol = vec3(1.0, 0.97, 0.92) * 1.15 * uSunPower;
-  vec3 lit = (col * (1.0 - F) * NdL + specBRDF * NdL * 3.14159265) * sunCol * term * shadow;
+  // Eclipse: the Moon's shadow on Earth, or Earth's red-tinged shadow on the Moon.
+  float eclipse = 1.0;
+  vec3 eclipseTint = vec3(1.0);
+  if (uOccluder.w > 0.0){
+    vec3 P = uCenter + vRel;
+    vec3 Ld = normalize(uSunPos - P);
+    vec3 oc = uOccluder.xyz - P;
+    float tca = dot(oc, Ld);
+    if (tca > 0.0){
+      float d = length(oc - Ld * tca);
+      eclipse = smoothstep(uOccluder.w * 0.35, uOccluder.w * 1.15, d);
+      eclipseTint = mix(uOccTint, vec3(1.0), eclipse);
+    }
+  }
+  vec3 lit = (col * (1.0 - F) * NdL + specBRDF * NdL * 3.14159265) * sunCol * term * shadow * mix(eclipseTint * 0.35, vec3(1.0), eclipse);
   lit += col * 0.006;
   vec3 Fv = F0 + (1.0 - F0) * pow(1.0 - NdV, 5.0);
   lit += spec * Fv * uAtmoColor * 0.3 * term;
@@ -419,13 +510,24 @@ void main(){
     vec2 du, dv;
     vec2 uv = sphereUv(n, du, dv);
     vec3 nightCol = textureGrad(uNight, uv, du, dv).rgb;
-    emissive += nightCol * vec3(1.15, 0.95, 0.75) * 3.2 * smoothstep(0.0, 1.0, uCity) * (0.75 + 0.25 * clamp(uCity * 2.0 - 1.0, 0.0, 1.0));
+    // Lights spread over time: in the 1950s only the biggest cities glow; by the 2000s the map fills in.
+    float lum = dot(nightCol, vec3(0.33));
+    float thr = (1.0 - uCity) * 0.35;
+    emissive += nightCol * vec3(1.15, 0.95, 0.75) * 3.2 * smoothstep(thr, thr + 0.12, lum) * (0.35 + 0.65 * uCity) * (1.0 - lightsOut);
   } else if (uCity > 0.0){
     float c1 = smoothstep(0.35, 0.85, snoise(n * 18.0 + uSeed) * 0.5 + 0.5);
     float c2 = smoothstep(0.45, 0.9, snoise(n * 70.0 + uSeed * 1.3) * 0.5 + 0.5);
     float c3 = smoothstep(0.6, 0.95, snoise(n * 260.0 + uSeed * 1.7) * 0.5 + 0.5);
     float cities = c1 * (0.35 + 0.65 * c2) * (0.5 + 0.5 * c3) * cityMaskLand * smoothstep(0.0, 0.6, uCity * 1.4 - (1.0 - c1));
-    emissive += vec3(1.0, 0.66, 0.32) * cities * 2.4 * uCity;
+    // Settlements spread outward from where they were founded
+    float spread = 1.0;
+    if (uCitySite.w > 0.0){
+      float ang = acos(clamp(dot(n, uCitySite.xyz), -1.0, 1.0));
+      spread = 1.0 - smoothstep(uCitySite.w * 0.6, uCitySite.w, ang + snoise(n * 9.0 + uSeed) * uCitySite.w * 0.25);
+      // the founding base itself always glows
+      cities = max(cities, (1.0 - smoothstep(0.0, 0.035, ang)) * 0.9);
+    }
+    emissive += vec3(1.0, 0.66, 0.32) * cities * spread * 2.4 * max(uCity, 0.4) * (1.0 - lightsOut);
   }
   lit += emissive * (1.0 - smoothstep(-0.15, 0.1, ndlGeo));
 
@@ -433,6 +535,8 @@ void main(){
   float fres = pow(1.0 - max(dot(Ng, V), 0.0), 2.5);
   lit = mix(lit, uAtmoColor * (0.25 + term), clamp(fres * uAtmoDensity * smoothstep(-0.3, 0.3, ndlGeo) * 0.85, 0.0, 1.0));
   lit += uAtmoColor * uAtmoDensity * 0.05 * term;
+
+  lit += craterGlow;
 
   // Shadow cast by the rings
   if (uRingKind > 0.5){
@@ -486,9 +590,11 @@ export function planetMaterial(look: Look, radius: number) {
     uRingKind: { value: 0 },
     uMap: { value: null }, uNight: { value: null }, uOcean: { value: null },
     uHasMap: { value: 0 }, uHasNight: { value: 0 }, uHasOcean: { value: 0 },
-    uHeight: { value: null }, uHasHeight: { value: 0 }, uHeightScale: { value: 0.006 },
+    uHeight: { value: null }, uHasHeight: { value: 0 }, uHeightScale: { value: 0.006 }, uGray: { value: 0 }, uDisplace: { value: 0 },
     uSunObj: { value: new Vector3(1, 0, 0) }, uMoonObj: { value: new Vector3(1, 0, 0) }, uMoonPos: { value: new Vector3() },
     uMoonLight: { value: 0 }, uWinter: { value: [0.5, 0.5] },
+    uImpacts: { value: Array.from({ length: 10 }, () => new Vector4()) }, uImpactInfo: { value: Array.from({ length: 10 }, () => new Vector4()) }, uImpactCount: { value: 0 },
+    uOccluder: { value: new Vector4(0, 0, 0, 0) }, uOccTint: { value: new Color("#ff6a3c") }, uCitySite: { value: new Vector4() },
   };
   if (look.surface === "ice") {
     // Neptune gets bright streak clouds; Uranus stays nearly featureless.

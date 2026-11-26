@@ -56,7 +56,7 @@ export function Transport(): JSX.Element {
           ))}
         </div>
         <label class="date-pick" data-tip="Jump to a date">
-          <input type="date" min="1950-01-01" max="2600-12-31" value={isoOf(w.day)}
+          <input type="date" min="1944-01-01" max="2600-12-31" value={isoOf(w.day)}
             onChange={e => { const d = dayFromISO((e.target as HTMLInputElement).value); if (!Number.isNaN(d)) c.jumpTo(d); }} />
         </label>
         <IconButton icon="today" label="Today" kbd="T" onClick={() => c.today()} />

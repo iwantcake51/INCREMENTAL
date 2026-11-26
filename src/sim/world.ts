@@ -2,10 +2,16 @@ import { Bodies } from "./bodies";
 import { Civ, type CivSnapshot } from "./civ";
 import { EventBus } from "./events";
 import { God, type GodSnapshot } from "./god";
+import { Impacts, type Crater } from "./impacts";
+import { SkyWatcher } from "./sky";
+import { applyTimeline, rollTimeline, type TimelineRoll } from "../data/timeline";
 import { NewsFeed } from "./news";
 import { makeRng } from "./rng";
 import type { ScaleMode } from "./scale";
-import { dayNow, MAX_DAY, MIN_DAY, yearOf } from "./time";
+import { dayFromISO, MAX_DAY, MIN_DAY, yearOf } from "./time";
+
+/** The game starts the day before the first rocket reached space. */
+export const START_DAY = dayFromISO("1944-06-19");
 
 export type Quality = "low" | "medium" | "high";
 
@@ -34,11 +40,13 @@ export interface SaveData {
   focus: string;
   civ: CivSnapshot;
   god: GodSnapshot;
+  craters?: Crater[];
+  timeline?: TimelineRoll;
 }
 
 /** The whole simulation: time, bodies, civilization, god mode and the news. Knows nothing about rendering. */
 export class World {
-  day = dayNow();
+  day = START_DAY;
   speed = 30.44;
   playing = true;
   settings: Settings = { ...DEFAULT_SETTINGS };
@@ -47,12 +55,23 @@ export class World {
   readonly bodies = new Bodies();
   readonly civ: Civ;
   readonly god: God;
+  readonly impacts: Impacts;
+  readonly sky = new SkyWatcher();
   private lastStepDay = this.day;
 
+  timeline: TimelineRoll;
+
   constructor(seed = (Math.random() * 2 ** 31) | 0) {
+    // Roll this game's version of the projected future before anything reads the timeline.
+    const tr = makeRng(seed + 11);
+    this.timeline = rollTimeline(tr.next);
+    applyTimeline(this.timeline);
     this.civ = new Civ(this.news, this.bus, makeRng(seed));
-    this.god = new God(this.civ, this.news, this.bus);
+    this.impacts = new Impacts(makeRng(seed + 7));
+    this.god = new God(this.civ, this.news, this.bus, this.impacts);
+    this.impacts.onHit = (body, dir, size) => this.bus.emit({ type: "impact", body, dir, size });
     this.civ.reset(this.day);
+    this.impacts.reset(this.day);
   }
 
   get year() { return yearOf(this.day); }
@@ -62,11 +81,15 @@ export class World {
     this.day = Math.min(MAX_DAY, Math.max(MIN_DAY, this.day));
     if (this.day >= MAX_DAY) this.playing = false;
     const dtDays = this.day - this.lastStepDay;
+    if (dtDays < -0.5) { this.impacts.reset(this.day); this.sky.reset(); }
     this.lastStepDay = this.day;
     const visualSpeed = this.playing ? this.speed : 0;
     this.bodies.update(this.day, dtReal, visualSpeed, this.settings.scale);
     this.civ.update(this.day, dtReal, Math.max(this.speed, 0.04), this.bodies);
     this.god.update(this.day, dtDays);
+    const post = (item: import("./news").NewsItem, toast = false) => this.bus.emit({ type: "news", item, toast });
+    this.impacts.update(this.day, dtDays, dtReal, this.bodies, this.civ, this.news, post);
+    if (this.speed <= 400) this.sky.update(this.day, dtDays, this.news, item => post(item, !!item.major));
   }
 
   /** Jump to a date. Going backwards undoes everything that happened after it. */
@@ -82,15 +105,18 @@ export class World {
   }
 
   save(focus: string): SaveData {
-    return { v: 2, day: this.day, speed: this.speed, settings: this.settings, focus, civ: this.civ.snapshot(this.day), god: this.god.snapshot() };
+    return { v: 2, day: this.day, speed: this.speed, settings: this.settings, focus, civ: this.civ.snapshot(this.day), god: this.god.snapshot(), craters: this.impacts.snapshot(), timeline: this.timeline };
   }
 
   load(s: SaveData) {
     this.day = this.lastStepDay = s.day;
     this.speed = s.speed;
+    if (s.timeline) { this.timeline = s.timeline; applyTimeline(s.timeline); }
     this.settings = { ...DEFAULT_SETTINGS, ...s.settings };
     this.civ.warsEnabled = this.settings.wars;
     this.civ.restore(s.civ);
     this.god.restore(s.god);
+    this.impacts.reset(s.day);
+    this.impacts.restore(s.craters ?? []);
   }
 }

@@ -1,8 +1,9 @@
 import {
   AdditiveBlending, BoxGeometry, BufferAttribute, BufferGeometry, ConeGeometry, CylinderGeometry, Group, Line, LineBasicMaterial, Mesh,
-  MeshBasicMaterial, MeshStandardMaterial, Points, PointsMaterial, Quaternion, ShaderMaterial, TorusGeometry, Vector3, type Scene,
+  MeshBasicMaterial, MeshStandardMaterial, Points, Quaternion, ShaderMaterial, TorusGeometry, Vector3, type Scene,
 } from "three";
 import { PLANETS } from "../data/bodies";
+import { eraYear } from "../data/timeline";
 import type { Body } from "../sim/bodies";
 import { eclipticDir, eclipticToScene, heliocentric, type V3 } from "../sim/orbits";
 import { SUN_RADIUS, type ScaleMode } from "../sim/scale";
@@ -52,17 +53,6 @@ class Swarm {
   }
 }
 
-interface Probe { name: string; body: string; from: string; to?: string; r: number; speed: number; inc: number }
-const PROBES: Probe[] = [
-  { name: "Mars Reconnaissance Orbiter", body: "mars", from: "2006-03-10", r: 1.35, speed: 0.9, inc: 1.6 },
-  { name: "MAVEN", body: "mars", from: "2014-09-22", r: 2.1, speed: 0.5, inc: 1.3 },
-  { name: "Galileo", body: "jupiter", from: "1995-12-07", to: "2003-09-21", r: 6, speed: 0.12, inc: 0.1 },
-  { name: "Juno", body: "jupiter", from: "2016-07-05", r: 3.4, speed: 0.25, inc: 1.5 },
-  { name: "Europa Clipper", body: "jupiter", from: "2030-04-11", r: 5, speed: 0.18, inc: 0.3 },
-  { name: "Cassini", body: "saturn", from: "2004-07-01", to: "2017-09-15", r: 4, speed: 0.2, inc: 0.6 },
-  { name: "Dawn", body: "ceres", from: "2015-03-06", to: "2018-11-01", r: 3, speed: 0.6, inc: 1.4 },
-];
-
 /** Real Voyager routes: flyby dates and where each probe is heading now (ecliptic lon/lat), with speed in AU/year. */
 const VOYAGERS = [
   { id: "voyager1", name: "Voyager 1", launch: "1977-09-05", flybys: [["jupiter", "1979-03-05"], ["saturn", "1980-11-12"]], lon: 255, lat: 35, auNow: 167, now: 2025.9, speed: 3.57 },
@@ -77,10 +67,8 @@ interface VoyagerView { id: string; name: string; knots: { day: number; p: V3 }[
  */
 export class TechLayer {
   private sats: Swarm;
-  private probes: Points;
   private venusCities: Swarm;
   private dyson: Swarm;
-  private iss: Group;
   private elevator: Group;
   private ringHab: Mesh;
   private ceresStation: Mesh;
@@ -88,7 +76,6 @@ export class TechLayer {
   private voyagers: VoyagerView[] = [];
   private builtMode: ScaleMode | null = null;
   readonly arkPos = new Vector3(1e9, 0, 0);
-  probePositions: { name: string; pos: Vector3; body: string }[] = [];
 
   constructor(private scene: Scene, system: SolarSystem) {
     const shells = [53, 53.2, 70, 97.6, 43].map(d => (d * Math.PI) / 180);
@@ -97,28 +84,12 @@ export class TechLayer {
       const r = geo ? 6.6 * 0.8 : 1.08 + Math.random() * (i < 2200 ? 0.35 : 0.08);
       const inc = geo ? 0 : i < 2200 ? Math.random() * 1.7 : shells[i % shells.length];
       return [r, inc, Math.random() * 6.283, Math.random() * 6.283, (geo ? 0.05 : 0.35 + Math.random() * 0.2) * (Math.random() < 0.06 ? -1 : 1), 0.006];
-    }, { minPx: 1, maxPx: 2.5, glow: 0.2 });
-    const pg = new BufferGeometry();
-    pg.setAttribute("position", new BufferAttribute(new Float32Array(PROBES.length * 3), 3));
-    this.probes = new Points(pg, new PointsMaterial({ color: 0xffe7a8, size: 4, sizeAttenuation: false, transparent: true, blending: AdditiveBlending, depthWrite: false }));
-    this.probes.frustumCulled = false;
-    scene.add(this.probes);
+    }, { minPx: 1, maxPx: 2, glow: 0.11 });
     this.venusCities = new Swarm(scene, 60, "#ffd38a", () => [1.05, (Math.random() - 0.5) * 1.2, Math.random() * 6.283, Math.random() * 6.283, 0.05, 0.015], { minPx: 1.4, maxPx: 6, glow: 2.2 });
     this.dyson = new Swarm(scene, 40000, "#ffcf7a", () => {
       const u = Math.random() * 2 - 1;
       return [1.4 + Math.random() * 1.1, Math.acos(u), Math.random() * 6.283, Math.random() * 6.283, 0.04 + Math.random() * 0.05, 0.02];
     }, { minPx: 1, maxPx: 4, glow: 1.3 });
-
-    // ISS: truss, modules and solar wings
-    const metal = new MeshStandardMaterial({ color: 0xd8d8d8, metalness: 0.6, roughness: 0.4 });
-    const panel = new MeshStandardMaterial({ color: 0x2a3d7a, metalness: 0.3, roughness: 0.5, emissive: 0x0a1230 });
-    this.iss = new Group();
-    this.iss.add(new Mesh(new BoxGeometry(1.1, 0.04, 0.04), metal));
-    const mod = new Mesh(new CylinderGeometry(0.05, 0.05, 0.5, 12), metal); mod.rotation.x = Math.PI / 2; this.iss.add(mod);
-    for (const x of [-0.45, -0.3, 0.3, 0.45]) for (const z of [-0.18, 0.18]) { const p = new Mesh(new BoxGeometry(0.12, 0.005, 0.32), panel); p.position.set(x, 0, z); this.iss.add(p); }
-    this.iss.scale.setScalar(0.02);
-    this.iss.visible = false;
-    scene.add(this.iss);
 
     // Space elevator: tether from the equator to a counterweight station (lives in Earth's spinning frame)
     const earthView = system.views.get("earth")!;
@@ -222,55 +193,23 @@ export class TechLayer {
     // Satellites around Earth
     this.sats.place(earth, table(SAT_COUNT, year), ctx);
 
-    // Probes at other worlds
     const day = world.day;
-    this.probePositions = [];
-    const pp = this.probes.geometry.getAttribute("position") as BufferAttribute;
-    PROBES.forEach((p, i) => {
-      const on = day >= dayFromISO(p.from) && (!p.to || day < dayFromISO(p.to));
-      if (!on) return;
-      const b = B.get(p.body)!;
-      const a = i * 1.7 + p.speed * ctx.vis;
-      const pos = new Vector3().copy(b.pos)
-        .addScaledVector(b.eqU, Math.cos(a) * p.r * b.radius)
-        .addScaledVector(b.eqV, Math.sin(a) * Math.cos(p.inc) * p.r * b.radius)
-        .addScaledVector(b.axis, Math.sin(a) * Math.sin(p.inc) * p.r * b.radius);
-      pp.setXYZ(this.probePositions.length, pos.x, pos.y, pos.z);
-      this.probePositions.push({ name: p.name, pos, body: p.body });
-      if (B.systemOf(focus) === B.systemOf(p.body) && near(b, 40)) labels.put("probe-" + i, pos, `<span class="dot-probe"></span>${p.name}`, { cls: "tiny" });
-    });
-    this.probes.geometry.setDrawRange(0, this.probePositions.length);
-    pp.needsUpdate = true;
-
-    // ISS
-    const issOn = year >= 1998.9;
-    this.iss.visible = issOn && near(earth, 30);
-    if (this.iss.visible) {
-      const a = ctx.vis * 0.45;
-      const inc = (51.6 * Math.PI) / 180;
-      v1.copy(earth.eqU).multiplyScalar(Math.cos(a)).addScaledVector(earth.eqV, Math.sin(a) * Math.cos(inc)).addScaledVector(earth.axis, Math.sin(a) * Math.sin(inc));
-      this.iss.position.copy(earth.pos).addScaledVector(v1, earth.radius * 1.065);
-      this.iss.lookAt(earth.pos);
-      this.iss.scale.setScalar(Math.max(0.0035, screenScale(this.iss.position, 9)));
-      labels.put("iss", this.iss.position, "ISS", { cls: "tiny" });
-    }
-
     // Space elevator and orbital ring
-    this.elevator.visible = year >= 2095;
+    this.elevator.visible = year >= eraYear("elevator");
     if (this.elevator.visible) {
       const climber = this.elevator.getObjectByName("climber")!;
       climber.position.x = 1 + ((ctx.vis * 0.08) % 1) * 1.2;
     }
-    this.ringHab.visible = year >= 2180;
+    this.ringHab.visible = year >= eraYear("orbitalRing");
     if (this.ringHab.visible) (this.ringHab.material as MeshBasicMaterial).color.setScalar(1.4);
 
     // Venus cloud cities
     const venus = B.get("venus")!;
-    this.venusCities.place(venus, year >= 2070 ? Math.min(60, 6 + (year - 2070) * 0.8) : 0, ctx);
+    this.venusCities.place(venus, year >= eraYear("cloudCities") ? Math.min(60, 6 + (year - eraYear("cloudCities")) * 0.8) : 0, ctx);
 
     // Ceres station
     const ceres = B.get("ceres")!;
-    this.ceresStation.visible = year >= 2060;
+    this.ceresStation.visible = year >= eraYear("ceresStation");
     if (this.ceresStation.visible) {
       const a = ctx.vis * 0.4;
       this.ceresStation.position.copy(ceres.pos).add(v2.set(Math.cos(a), 0.2, Math.sin(a)).multiplyScalar(ceres.radius * 2.2));
@@ -298,13 +237,13 @@ export class TechLayer {
     }
 
     // Generation ship
-    this.ark.visible = year >= 2520;
+    this.ark.visible = year >= eraYear("ark");
     if (this.ark.visible) {
-      const t = year - 2520;
+      const t = year - eraYear("ark");
       const dir = eclipticDir(239.5, -42.6, { x: 0, y: 0, z: 0 });
       const au = 1 + 0.6 * t * t;
       const start = { x: 0, y: 0, z: 0 };
-      heliocentric(PLANETS.find(p => p.id === "earth")!.orbit, dayFromISO("2520-01-01"), start);
+      heliocentric(PLANETS.find(p => p.id === "earth")!.orbit, (eraYear("ark") - 2000) * 365.25, start);
       const ecl = { x: start.x + dir.x * au, y: start.y - dir.z * au, z: start.z + dir.y * au };
       eclipticToScene(ecl, world.settings.scale, this.arkPos);
       this.ark.position.copy(this.arkPos);

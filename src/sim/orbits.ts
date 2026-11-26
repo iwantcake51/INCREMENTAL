@@ -11,8 +11,13 @@ export function heliocentric(el: Elements, day: number, out: V3): V3 {
   const O = el.node * RAD, inc = el.i * RAD;
   let M = (el.L0 + (360 * day) / el.T - el.peri) * RAD;
   M = ((M % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
-  let E = M + e * Math.sin(M);
-  for (let k = 0; k < 8; k++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+  // Newton's method; very eccentric orbits (comets) start from E = π so it always converges.
+  let E = e > 0.8 ? (M < 0 ? -Math.PI : Math.PI) * 0.999 : M + e * Math.sin(M);
+  for (let k = 0; k < 40; k++) {
+    const dE = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+    E -= dE;
+    if (Math.abs(dE) < 1e-12) break;
+  }
   const xp = el.a * (Math.cos(E) - e), yp = el.a * Math.sqrt(1 - e * e) * Math.sin(E);
   const cw = Math.cos(w), sw = Math.sin(w), cO = Math.cos(O), sO = Math.sin(O), ci = Math.cos(inc), si = Math.sin(inc);
   out.x = (cw * cO - sw * sO * ci) * xp + (-sw * cO - cw * sO * ci) * yp;

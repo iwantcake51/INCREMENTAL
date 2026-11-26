@@ -8,6 +8,7 @@ export type SimEvent =
   | { type: "shot"; from: Vector3; to: Vector3; color: string; weapon: Weapon }
   | { type: "blast"; at: Vector3; color: string; size: number }
   | { type: "news"; item: NewsItem; toast: boolean }
+  | { type: "impact"; body: string; dir: [number, number, number]; size: string }
   | { type: "reset" };
 
 type Listener = (e: SimEvent) => void;

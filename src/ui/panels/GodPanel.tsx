@@ -19,7 +19,7 @@ function FacSelect({ value, onChange, exclude }: { value: number; onChange: (v: 
 function PowerCard({ p }: { p: Power }) {
   const c = ctl(), w = c.world, god = w.god;
   const [open, setOpen] = useState(false);
-  const [a, setA] = useState<number | string>(p.target === "colonySite" ? COLONY_SITES.find(s => w.civ.canFound(s)) ?? "io" : p.target === "terraform" ? "mars" : 0);
+  const [a, setA] = useState<number | string>(p.target === "colonySite" ? COLONY_SITES.find(s => w.civ.canFound(s)) ?? "io" : p.target === "terraform" ? "mars" : p.target === "body" ? "moon" : 0);
   const [b, setB] = useState<number>(1);
   const why = god.availability(p, w.year);
   const locked = god.rank < p.rank;
@@ -55,6 +55,11 @@ function PowerCard({ p }: { p: Power }) {
             </select>
             <span>for</span><FacSelect value={b} onChange={setB} />
           </>}
+          {p.target === "body" && (
+            <select value={a as string} onChange={e => setA((e.target as HTMLSelectElement).value)}>
+              {w.bodies.list.filter(b => b.kind !== "sun").map(b => <option key={b.id} value={b.id}>{b.name}{w.civ.colonies.some(col => col.active && col.body === b.id) ? " (settled)" : ""}</option>)}
+            </select>
+          )}
           {p.target === "terraform" && (
             <select value={a as string} onChange={e => setA((e.target as HTMLSelectElement).value)}>
               {TERRAFORMABLE.map(s => <option key={s} value={s} disabled={w.god.terraformLevel(s, w.year) > 0}>{cap(s)}</option>)}

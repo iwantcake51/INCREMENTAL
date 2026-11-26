@@ -1,4 +1,5 @@
-import { Vector3 } from "three";
+import { Quaternion, Vector3 } from "three";
+import { moonPosition } from "./sky";
 import { CERES, MOONS, PLANETS, SUN, type Look, type MoonDef, type PlanetDef } from "../data/bodies";
 import { eclipticDir, eclipticToScene, heliocentric, type V3 } from "./orbits";
 import { bodyRadius, moonOrbitRadius, SUN_RADIUS, type ScaleMode } from "./scale";
@@ -30,9 +31,15 @@ export interface Body {
   /** Moons: orbit radius (scene) and current orbital angle. */
   orbitR: number;
   angle: number;
+  /** Orientation: tilt (axis) and tilt × spin (the body's rotating frame). */
+  tiltQ?: Quaternion;
+  quat?: Quaternion;
 }
+const UPV = new Vector3(0, 1, 0);
+const qSpin = new Quaternion();
 
 const tmp: V3 = { x: 0, y: 0, z: 0 };
+const tmpV = new Vector3();
 
 function makeAxis(tiltDeg: number, poleLon: number) {
   const axis = new Vector3();
@@ -71,7 +78,16 @@ export class Bodies {
       pos: new Vector3(), ...makeAxis(4, 0), spin: 0, look: CERES.look, orbitR: 0, angle: 0 });
   }
 
-  private add(b: Body) { this.list.push(b); this.map.set(b.id, b); return b; }
+  private add(b: Body) {
+    b.tiltQ = new Quaternion().setFromUnitVectors(UPV, b.axis);
+    b.quat = b.tiltQ.clone();
+    this.list.push(b); this.map.set(b.id, b); return b;
+  }
+
+  /** Convert a direction in a body's own rotating frame to scene space. */
+  localToWorld(b: Body, dir: { x: number; y: number; z: number }, out: Vector3) {
+    return out.set(dir.x, dir.y, dir.z).applyQuaternion(b.quat!);
+  }
 
   get(id: string) { return this.map.get(id); }
 
@@ -96,13 +112,23 @@ export class Bodies {
       const parent = this.map.get(b.parent!)!;
       const per = b.moon!.period;
       b.angle += Math.sign(per) * Math.min(daysPerSec / Math.abs(per), 0.5) * dtReal * Math.PI * 2;
-      const c = Math.cos(b.angle), s = Math.sin(b.angle);
-      b.pos.copy(parent.pos).addScaledVector(parent.eqU, c * b.orbitR).addScaledVector(parent.eqV, s * b.orbitR);
+      if (b.id === "moon" && daysPerSec <= 2) {
+        // The real Moon: true direction from a lunar theory, so phases and eclipses happen on the right dates.
+        const m = moonPosition(day);
+        const lon = m.lon * Math.PI / 180, lat = m.lat * Math.PI / 180;
+        tmpV.set(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon));
+        b.pos.copy(parent.pos).addScaledVector(tmpV, b.orbitR);
+        b.angle = Math.atan2(tmpV.dot(parent.eqV), tmpV.dot(parent.eqU));
+      } else {
+        const c = Math.cos(b.angle), s = Math.sin(b.angle);
+        b.pos.copy(parent.pos).addScaledVector(parent.eqU, c * b.orbitR).addScaledVector(parent.eqV, s * b.orbitR);
+      }
       b.spin = b.angle; // tidally locked: always shows the same face to its planet
     }
     const ceres = this.map.get("ceres")!;
     eclipticToScene(heliocentric(CERES.orbit, day, tmp), mode, ceres.pos);
     ceres.spin += dtReal * Math.min(daysPerSec / 0.378, 0.2) * Math.PI * 2;
+    for (const b of this.list) b.quat!.copy(b.tiltQ!).multiply(qSpin.setFromAxisAngle(UPV, b.spin));
   }
 
   /** The planet a body belongs to (itself for planets). */

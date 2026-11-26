@@ -3,7 +3,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { FACTIONS } from "../data/timeline";
+import { eraYear, FACTIONS } from "../data/timeline";
 import type { Body } from "../sim/bodies";
 import type { World, Quality } from "../sim/world";
 import { CameraRig, type FocusTarget } from "./CameraRig";
@@ -12,7 +12,12 @@ import { Labels } from "./Labels";
 import { SolarSystem, type FrameCtx } from "./SolarSystem";
 import { TechLayer } from "./TechLayer";
 import { WarLayer } from "./WarLayer";
+import { CraftLayer } from "./CraftLayer";
+import { RocketLayer } from "./RocketLayer";
+import { ImpactLayer } from "./ImpactLayer";
+import { SkyFx } from "./SkyFx";
 import { loadMaps } from "./textures";
+import { makeSunThumb, makeThumb } from "./thumbs";
 
 export interface EngineHooks {
   onSelect(id: string): void;
@@ -38,6 +43,10 @@ export class Engine {
   private tech: TechLayer;
   private war: WarLayer;
   private fx: Effects;
+  readonly craft: CraftLayer;
+  private rockets: RocketLayer;
+  private impacts: ImpactLayer;
+  readonly sky: SkyFx;
   private t = 0;
   private vis = 0;
   private last = performance.now();
@@ -71,6 +80,10 @@ export class Engine {
     this.system = new SolarSystem(this.scene, world, Math.min(devicePixelRatio || 1, 2));
     this.tech = new TechLayer(this.scene, this.system);
     this.war = new WarLayer(this.scene, this.fx);
+    this.craft = new CraftLayer(this.scene);
+    this.rockets = new RocketLayer(this.scene, world, this.fx);
+    this.impacts = new ImpactLayer(this.scene, world, this.fx);
+    this.sky = new SkyFx(this.scene, world, this.system);
 
     world.bus.on(e => {
       if (e.type === "shot") this.war.shot(e.from, e.to, e.color, e.weapon);
@@ -78,7 +91,17 @@ export class Engine {
       else if (e.type === "reset") this.war.clear();
     });
 
-    loadMaps(this.renderer, (id, maps) => this.system.applyMaps(id, maps), () => { this.mapsReady = true; });
+    const VIEW_LON: Record<string, number> = { earth: -60, mars: -60, jupiter: 30, moon: 0 };
+    loadMaps(this.renderer, (id, maps) => {
+      this.system.applyMaps(id, maps);
+      const b = world.bodies.get(id);
+      if (b) makeThumb(id, maps.map?.image as HTMLImageElement, { gray: maps.gray, tint: b.look?.colors[2] ?? b.color, atmo: b.look?.atmosphere && b.look.atmosphere.density > 0.4 ? b.look.atmosphere.color : undefined, ring: id === "saturn", viewLon: VIEW_LON[id] });
+    }, () => {
+      this.mapsReady = true;
+      // Worlds without real maps get a shaded portrait from their palette
+      for (const b of world.bodies.list) if (b.kind !== "sun" && !["earth", "mars", "jupiter", "saturn", "mercury", "venus", "moon", "uranus", "neptune", "io", "europa", "ganymede", "callisto", "enceladus", "titan", "triton", "phobos", "ceres"].includes(b.id)) makeThumb(b.id, null, { tint: b.color });
+    });
+    makeSunThumb();
 
     this.bindPointer();
     this.resize();
@@ -113,6 +136,10 @@ export class Engine {
   target(id: string): FocusTarget | undefined {
     const b = this.world.bodies.get(id);
     if (b) return { pos: b.pos, radius: b.radius };
+    const cp = this.sky.cometPos(id);
+    if (cp) return { pos: cp, radius: 0.05 };
+    const cv = this.craft.get(id);
+    if (cv?.active) return { pos: cv.pos, radius: cv.craft.kind === "landing" ? 0.02 : 0.004 };
     const v = this.tech.voyagerPos(id);
     if (v) return { pos: v, radius: 0.05 };
     if (id === "ark") return { pos: this.tech.arkPos, radius: 0.1 };
@@ -124,7 +151,8 @@ export class Engine {
     if (!t) return;
     this.selected = id;
     const b = this.world.bodies.get(id);
-    const d = dist ?? (b?.kind === "sun" ? 60 : b?.planet?.ring ? t.radius * 7 : b ? t.radius * 5.5 : 3);
+    const cv = this.craft.get(id);
+    const d = dist ?? (b?.kind === "sun" ? 60 : b?.planet?.ring ? t.radius * 7 : b ? t.radius * 5.5 : cv ? (cv.craft.kind === "landing" ? 0.12 : cv.craft.kind === "probe" && this.world.day < cv.arrive ? 1.5 : 0.05) : 3);
     this.rig.flyTo(id, t, d);
   }
 
@@ -144,9 +172,10 @@ export class Engine {
   private levels = {
     city: (id: string) => {
       const y = this.world.year;
-      if (id === "earth") return Math.min(1, 0.55 + Math.max(0, y - 1950) / 260);
+      // Earth's night lights brighten through the 1960s–2000s as electrification spreads.
+      if (id === "earth") return 0.12 + 0.88 / (1 + Math.exp(-(y - 1982) / 9));
       const c = this.world.civ.colonies.find(c => c.active && c.body === id);
-      return c ? Math.min(1, 0.25 + (y - c.y) / 60) : 0;
+      return c ? Math.min(1, 0.15 + (y - c.y) / 120) : 0;
     },
     terraform: (id: string) => this.world.god.terraformLevel(id, this.world.year),
   };
@@ -173,6 +202,10 @@ export class Engine {
     this.fx.setPixelScale(ctx.px * this.renderer.getPixelRatio());
     this.fx.update(dt);
     this.war.update(ctx, this.labels, id => this.hooks.onSelect(id));
+    this.craft.update(ctx, this.labels, this.selected, id => this.hooks.onSelect(id));
+    this.rockets.update(ctx);
+    this.impacts.update(ctx);
+    this.sky.update(ctx, this.labels, this.selected);
     if (this.world.settings.labels) this.bodyLabels(ctx);
     this.labels.end();
     this.render();
@@ -210,7 +243,9 @@ export class Engine {
   pick(x: number, y: number): { id: string; name: string } | null {
     const cands: { id: string; name: string; pos: Vector3; r: number }[] = this.world.bodies.list.map((b: Body) => ({ id: b.id, name: b.name, pos: b.pos, r: b.radius }));
     for (const id of ["voyager1", "voyager2"]) { const p = this.tech.voyagerPos(id); if (p && this.world.year >= 1977.6) cands.push({ id, name: id === "voyager1" ? "Voyager 1" : "Voyager 2", pos: p, r: 0.05 }); }
-    if (this.world.year >= 2520) cands.push({ id: "ark", name: "Generation ship", pos: this.tech.arkPos, r: 0.1 });
+    if (this.world.year >= eraYear("ark")) cands.push({ id: "ark", name: "Generation ship", pos: this.tech.arkPos, r: 0.1 });
+    for (const cv of this.sky.comets) if (cv.active > 0.02) cands.push({ id: cv.id, name: cv.name, pos: cv.pos, r: 0.05 });
+    for (const v of this.craft.views) if (v.active) cands.push({ id: v.craft.id, name: v.craft.name, pos: v.pos, r: 0.002 });
     let best: { id: string; name: string } | null = null, bd = Infinity;
     const cam = this.camera.position;
     for (const c of cands) {

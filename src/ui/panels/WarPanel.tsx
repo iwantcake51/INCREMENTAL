@@ -1,4 +1,4 @@
-import { FACTIONS, WAR_START_YEAR } from "../../data/timeline";
+import { eraYear, FACTIONS, warStartYear } from "../../data/timeline";
 import { CAUSE_INFO, weaponAt, type Cause } from "../../sim/civ";
 import { shortDateOf, yearOf } from "../../sim/time";
 import { ctl } from "../ctl";
@@ -28,12 +28,12 @@ export function WarPanel() {
       <div class="explain">
         <b>How wars start.</b> Each pair of powers has a <em>tension</em> score. It rises from the things that start real wars:
         rival claims next door, scarce resources, lost colonies, fear of a rising power, arms races and border incidents.
-        Trade and time calm it. At <b>100</b> one side declares war, but only once warships exist ({WAR_START_YEAR}).
+        Trade and time calm it. At <b>100</b> one side declares war, but only once warships exist ({warStartYear()}).
         <span class="tag-proj">fiction</span>
       </div>
 
       <div class="status-row">
-        <span>Weapons: <b>{weapon ? weapon.name : `none until ${WAR_START_YEAR}`}</b></span>
+        <span>Weapons: <b>{weapon ? weapon.name : `none until ${warStartYear()}`}</b></span>
         <span>{civ.wars.length ? <b class="red">{civ.wars.length} war{civ.wars.length > 1 ? "s" : ""}</b> : "At peace"}</span>
         {!w.settings.wars && <span class="muted">Wars are off (Settings)</span>}
         {civ.stormUntil > year && <span>Fleets grounded by a solar storm until {Math.floor(civ.stormUntil)}</span>}
@@ -123,7 +123,7 @@ export function WarPanel() {
           <li><span class="lg-bar" /> A red bar under a name means it is under attack. When it fills, the battle is decided.</li>
           <li><span class="lg-ship">▶</span> Warships fly in formation in their power's color, with a label saying where they're going.</li>
           <li><span class="lg-line" /> A faint line points from a fleet to its target.</li>
-          <li><span class="lg-shot" /> Weapon fire: coilgun slugs, laser beams (2110), antimatter missiles (2200), lances (2300).</li>
+          <li><span class="lg-shot" /> Weapon fire: coilgun slugs, then laser beams ({eraYear("fusion")}), antimatter missiles ({eraYear("antimatter")}) and lances ({eraYear("lances")}).</li>
         </ul>
       </Section>
 

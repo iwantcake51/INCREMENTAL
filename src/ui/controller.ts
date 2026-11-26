@@ -104,6 +104,15 @@ export class Controller {
   // ---------- god powers ----------
 
   usePower(id: string, a?: number | string, b?: number | string) {
+    // Asteroid strikes aim at the side of the world you're looking at, so you can watch the impact.
+    if ((id === "asteroid" || id === "extinction") && typeof a === "string") {
+      const body = this.world.bodies.get(a);
+      if (body) {
+        const d = this.engine.camera.position.clone().sub(body.pos).normalize().applyQuaternion(body.quat!.clone().invert());
+        d.add({ x: (Math.random() - 0.5) * 0.5, y: (Math.random() - 0.5) * 0.5, z: (Math.random() - 0.5) * 0.5 } as any).normalize();
+        this.world.impacts.aim = [d.x, d.y, d.z];
+      }
+    }
     const err = this.world.god.use(id, this.world.day, a, b);
     if (err) say(err);
     else { chime("good"); tick.value++; }

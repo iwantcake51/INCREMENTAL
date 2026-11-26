@@ -6,7 +6,7 @@
 // (100+) and warships exist (2060+), one side declares war. Wars end when both sides are worn out, or one is conquered.
 
 import { Vector3 } from "three";
-import { COLONIES, ERAS, FACTIONS, RESOURCE_TEXT, WAR_START_YEAR, type ColonyDef, type Resource } from "../data/timeline";
+import { COLONIES, ERAS, FACTIONS, RESOURCE_TEXT, warStartYear, type ColonyDef, type Resource } from "../data/timeline";
 import type { Bodies } from "./bodies";
 import type { EventBus, Weapon } from "./events";
 import type { NewsFeed, NewsItem } from "./news";
@@ -28,22 +28,21 @@ export const CAUSE_INFO: Record<Cause, { label: string; parallel: string }> = {
 const ZONE: Record<string, number> = { mercury: 0, venus: 0, earth: 0, mars: 1, ceres: 1, jupiter: 2, saturn: 3, uranus: 4, neptune: 4 };
 const ZONE_NAME = ["the inner planets", "Mars and the asteroid belt", "Jupiter's moons", "Saturn's moons", "the outer planets"];
 
-const WEAPON_ERAS: { y: number; weapon: Weapon; name: string }[] = [
-  { y: 2060, weapon: "coil", name: "Coilguns" },
-  { y: 2110, weapon: "laser", name: "Lasers" },
-  { y: 2200, weapon: "missile", name: "Antimatter missiles" },
-  { y: 2300, weapon: "lance", name: "Relativistic lances" },
-];
+const WEAPON_KIND: Weapon[] = ["coil", "laser", "missile", "lance"];
+/** Weapons available in a given year (weapon eras come from the timeline, which varies a little per game). */
 export function weaponAt(year: number): { weapon: Weapon; name: string; level: number } | null {
   let r: { weapon: Weapon; name: string; level: number } | null = null;
-  WEAPON_ERAS.forEach((w, i) => { if (year >= w.y) r = { weapon: w.weapon, name: w.name, level: i }; });
+  ERAS.filter(e => e.weapon).forEach((e, i) => { if (year >= e.y) r = { weapon: WEAPON_KIND[Math.min(i, 3)], name: e.weapon!, level: i }; });
   return r;
 }
+const firstColonyYear = () => Math.min(...COLONIES.filter(c => c.y > 2026 && c.id !== "luna").map(c => c.y));
 
 export interface Colony extends ColonyDef {
   owner: number;
   /** Founded by the player with a god power. */
   custom?: boolean;
+  /** Wrecked by an impact until this year. */
+  ruinedUntil?: number;
   active: boolean;
   /** 0–1 while a siege is under way. */
   siege: number;
@@ -165,7 +164,7 @@ export class Civ {
     this.colonies = this.colonies.filter(c => !c.custom || c.y <= year);
     this.blessUntil = FACTIONS.map(() => -Infinity);
     this.stormUntil = -Infinity;
-    this.colonies.forEach(c => { c.owner = c.fac; c.active = year >= c.y; c.siege = 0; c.besiegedBy = -1; });
+    this.colonies.forEach(c => { c.owner = c.fac; c.active = year >= c.y; c.siege = 0; c.besiegedBy = -1; c.ruinedUntil = undefined; });
     this.wars = []; this.fleets = []; this.freighters = [];
     this.tension = pairs(() => 0);
     this.contrib = pairs(() => Object.fromEntries(CAUSES.map(c => [c, 0])) as Record<Cause, number>);
@@ -194,15 +193,20 @@ export class Civ {
     while (this.eraIdx + 1 < ERAS.length && year >= ERAS[this.eraIdx + 1].y) {
       const e = ERAS[++this.eraIdx];
       if (!e.real) this.post({ day, cat: "milestone", title: e.name, body: e.shows ? `${e.d} ${e.shows}` : e.d, focus: e.focus, major: true }, live);
-      if (e.weapon && year >= WAR_START_YEAR) this.armsRace(e.weapon, day, live);
+      if (e.weapon && year >= warStartYear()) this.armsRace(e.weapon, day, live);
     }
     for (const c of this.colonies) {
-      if (!c.active && year >= c.y) {
+      if (!c.active && c.ruinedUntil !== undefined && year >= c.ruinedUntil && year >= c.y) {
+        c.active = true; c.ruinedUntil = undefined; this.version++;
+        this.post({ day, cat: "colony", title: `${c.name} rebuilt`, body: `Settlers return to ${c.name} and rebuild after the impact.`, focus: c.body, facs: [c.owner] }, live);
+        continue;
+      }
+      if (!c.active && year >= c.y && c.ruinedUntil === undefined) {
         c.active = true; c.owner = c.fac; this.version++;
         if (c.y > 2026) this.post({ day, cat: "colony", title: `${c.name} settlement founded`, body: `The ${FACTIONS[c.fac].name} opens a settlement on ${c.name.replace(/ .*/, "")}.`, focus: c.body, facs: [c.fac] }, live);
       }
     }
-    if (year < 2045) return;
+    if (year < firstColonyYear()) return;
 
     // Occupied colonies may rise up and return to the power that founded them (this can revive a fallen power).
     for (const c of this.colonies) {
@@ -253,7 +257,7 @@ export class Civ {
         this.post({ day, cat: "tension", title: `Tensions rise: ${FACTIONS[i].short} and ${FACTIONS[j].short}`,
           body: `Relations between the ${FACTIONS[i].name} and the ${FACTIONS[j].name} are souring over ${this.reason(cause, i, j)}. War is possible.`, facs: [i, j] }, live);
       } else if (t < 40) this.warned[i][j] = false;
-      if (t >= 100 && year >= WAR_START_YEAR && this.warsEnabled && !truce && this.wars.length < 3) this.declare(i, j, day, live);
+      if (t >= 100 && year >= warStartYear() && this.warsEnabled && !truce && this.wars.length < 3) this.declare(i, j, day, live);
     }
 
     // Wars in progress
@@ -565,7 +569,7 @@ export class Civ {
 
   private updateFreighters(day: number, dtReal: number, daysPerSec: number, bodies: Bodies, year: number) {
     const act = this.activeColonies();
-    if (year >= 2045 && act.length >= 2) {
+    if (year >= firstColonyYear() && act.length >= 2) {
       this.freightClock += dtReal * Math.min(2.5, 0.35 * act.length);
       while (this.freightClock > 1 && this.freighters.length < 36) {
         this.freightClock -= 1;
@@ -611,7 +615,7 @@ export class Civ {
     this.lastIncident[i][j] = this.lastIncident[j][i] = `Mysterious sabotage blamed on each other`;
     this.nudgeTension(i, j, 45, "incident");
     this.truce[i][j] = this.truce[j][i] = Math.min(this.truce[i][j], yearOf(day));
-    if (this.tension[i][j] >= 100 && yearOf(day) >= WAR_START_YEAR && this.warsEnabled && !this.atWar(i, j)) this.declare(i, j, day, true);
+    if (this.tension[i][j] >= 100 && yearOf(day) >= warStartYear() && this.warsEnabled && !this.atWar(i, j)) this.declare(i, j, day, true);
   }
 
   forceWar(i: number, j: number, day: number) {
@@ -642,6 +646,15 @@ export class Civ {
     this.colonies.forEach(c => { c.siege = 0; c.besiegedBy = -1; });
     this.post({ day, cat: "disaster", focus: "sun", major: true, title: "Great solar storm",
       body: `A huge solar flare fries ship electronics across the solar system. Every fleet is grounded for ${years} years.` }, true);
+  }
+
+  /** An impact wrecks a colony for some years. */
+  ruin(id: string, day: number, years: number) {
+    const c = this.colony(id);
+    c.active = false; c.siege = 0; c.besiegedBy = -1;
+    c.ruinedUntil = yearOf(day) + years;
+    this.fleets.filter(f => f.target === id || f.from === id).forEach(f => (f.state = "done"));
+    this.version++;
   }
 
   canFound(body: string) { return !this.colonies.some(c => c.body === body); }

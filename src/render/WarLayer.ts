@@ -3,7 +3,7 @@ import {
   LineSegments, Matrix4, Mesh, MeshBasicMaterial, Points, PointsMaterial, Quaternion, SphereGeometry, Vector3, type Scene,
 } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { FACTIONS } from "../data/timeline";
+import { eraYear, FACTIONS } from "../data/timeline";
 import type { Weapon } from "../sim/events";
 import type { Effects } from "./Effects";
 import type { Labels } from "./Labels";
@@ -30,7 +30,7 @@ function freighterGeometry() {
 }
 
 export function engineColor(year: number) {
-  return year >= 2200 ? "#c79bff" : year >= 2110 ? "#9fd0ff" : "#ffb062";
+  return year >= eraYear("antimatter") ? "#c79bff" : year >= eraYear("fusion") ? "#9fd0ff" : "#ffb062";
 }
 
 /**

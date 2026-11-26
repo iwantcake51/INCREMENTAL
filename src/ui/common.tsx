@@ -1,6 +1,8 @@
 import type { ComponentChildren } from "preact";
 import { FACTIONS } from "../data/timeline";
 import type { NewsCategory } from "../data/history";
+import { getThumb } from "../render/thumbs";
+import { thumbVersion } from "./store";
 
 const PATHS: Record<string, string> = {
   play: "M7 4l13 8-13 8z",
@@ -85,7 +87,10 @@ export function Bar({ value, color, marker }: { value: number; color?: string; m
 }
 
 /** CSS-rendered planet thumbnail for the dock and panel headers. */
-export function Globe({ color, size = 34, ring, glow }: { color: string; size?: number; ring?: boolean; glow?: boolean }) {
+export function Globe({ color, size = 34, ring, glow, id }: { color: string; size?: number; ring?: boolean; glow?: boolean; id?: string }) {
+  thumbVersion.value;
+  const src = id ? getThumb(id) : undefined;
+  if (src) return <img class={`globe-img ${ring ? "ringed" : ""}`} src={src} width={ring ? size * 1.6 : size} height={ring ? size * 1.6 : size} alt="" style={{ margin: ring ? `${-size * 0.3}px` : 0 }} />;
   return (
     <span class={`globe ${ring ? "ringed" : ""} ${glow ? "star" : ""}`} style={{ width: `${size}px`, height: `${size}px`, "--c": color } as any} />
   );

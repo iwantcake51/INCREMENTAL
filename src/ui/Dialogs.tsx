@@ -80,8 +80,10 @@ export function Search() {
       { kind: "Spacecraft", label: "Voyager 1", sub: "launched 1977", run: () => { if (w.year < 1977.7) c.jumpTo((1980 - 2000) * 365.25); c.select("voyager1"); } },
       { kind: "Spacecraft", label: "Voyager 2", sub: "launched 1977", run: () => { if (w.year < 1977.7) c.jumpTo((1990 - 2000) * 365.25); c.select("voyager2"); } },
     ];
+    const comets = c.engine.sky.comets.map(k => ({ kind: "Comet", label: k.name, sub: k.active > 0.02 ? "near the Sun now" : "far out", run: () => c.select(k.id) }));
+    const craft = c.engine.craft.views.filter(v => v.active).map(v => ({ kind: "Spacecraft", label: v.craft.name, sub: v.craft.operator, run: () => c.select(v.craft.id) }));
     const news = w.news.items.slice(0, 200).map(it => ({ kind: CAT[it.cat].label, label: it.title, sub: shortDateOf(it.day), run: () => { if (it.focus) c.select(it.focus); } }));
-    const all = [...bodies, ...extra, ...news];
+    const all = [...bodies, ...extra, ...comets, ...craft, ...news];
     return (n ? all.filter(r => (r.label + " " + r.sub).toLowerCase().includes(n)) : [...bodies.slice(0, 10), ...extra]).slice(0, 12);
   }, [q]);
   const go = (k: number) => { const r = results[k]; if (r) { r.run(); dialog.value = null; } };
