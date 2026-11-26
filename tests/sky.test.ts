@@ -71,3 +71,21 @@ describe("per-game timeline", () => {
     expect(seen.size).toBeGreaterThan(2);
   });
 });
+
+describe("god powers", () => {
+  it("are free, shields stop impacts, and colonies can be handed over or attacked", () => {
+    const w = new World(8);
+    w.setDay(dayFromISO("2100-01-01")); w.step(0);
+    const inf = w.god.influence;
+    expect(w.god.use("shield", w.day, "earth")).toBeNull();
+    expect(w.god.use("asteroid", w.day, "earth")).toBeNull();
+    for (let i = 0; i < 300; i++) w.step(1 / 60);
+    expect(w.impacts.craters.some(c => c.body === "earth" && c.year >= 2100)).toBe(false);
+    expect(w.god.influence).toBeGreaterThanOrEqual(inf);
+    const col = w.civ.activeColonies().find(c => c.id !== "earth")!;
+    const other = (col.owner + 1) % 5;
+    expect(w.god.use("give", w.day, col.id, other)).toBeNull();
+    expect(w.civ.colony(col.id).owner).toBe(other);
+    expect(w.god.use("uprising", w.day, col.id)).toBe(col.fac === other ? "That colony already belongs to its founders" : null);
+  });
+});

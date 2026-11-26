@@ -491,6 +491,17 @@ export class Civ {
 
   private tactical(day: number, dtReal: number, daysPerSec: number, bodies: Bodies) {
     const year = yearOf(day);
+    for (const o of this.orders.splice(0)) {
+      const w = this.warBetween(o.fac, this.colony(o.target).owner);
+      const target = this.colony(o.target);
+      const mine = this.coloniesOf(o.fac);
+      if (!w || !mine.length) continue;
+      const from = mine.reduce((best, m) => bodies.get(m.body)!.pos.distanceTo(bodies.get(target.body)!.pos) < bodies.get(best.body)!.pos.distanceTo(bodies.get(target.body)!.pos) ? m : best, mine[0]);
+      const ships = this.fleetSize(o.fac, year) + 2;
+      const d = bodies.get(from.body)!.pos.distanceTo(bodies.get(target.body)!.pos);
+      this.fleets.push({ id: this.nextId++, fac: o.fac, warId: w.id, kind: "attack", ships, startShips: ships, from: from.id, target: target.id,
+        p: 0, travel: clamp((40 + d * 1.5) / daysPerSec, 2.5, 7), state: "transit", t: 0, fire: 0, pos: bodies.get(from.body)!.pos.clone(), dir: new Vector3(1, 0, 0), status: "" });
+    }
     const weapon = weaponAt(year)?.weapon ?? "coil";
     const byId = new Map(this.fleets.map(f => [f.id, f]));
     for (const f of this.fleets) {
@@ -655,6 +666,35 @@ export class Civ {
     c.ruinedUntil = yearOf(day) + years;
     this.fleets.filter(f => f.target === id || f.from === id).forEach(f => (f.state = "done"));
     this.version++;
+  }
+
+  handOver(id: string, fac: number, day: number) {
+    const c = this.colonies.find(x => x.id === id);
+    if (!c || !c.active) return false;
+    const old = c.owner;
+    c.owner = fac; c.siege = 0; c.besiegedBy = -1; this.version++;
+    this.post({ day, cat: "colony", facs: [fac, old], focus: c.body, title: `${c.name} changes hands`, body: `${c.name} passes from the ${FACTIONS[old].name} to the ${FACTIONS[fac].name}, as if by an unseen hand.` }, true);
+    return true;
+  }
+
+  uprising(id: string, day: number) {
+    const c = this.colonies.find(x => x.id === id);
+    if (!c || !c.active || c.owner === c.fac) return false;
+    const old = c.owner;
+    c.owner = c.fac; this.version++;
+    this.post({ day, cat: "war", facs: [c.fac, old], focus: c.body, major: true, title: `Uprising on ${c.name}`, body: `Settlers on ${c.name} throw out the ${FACTIONS[old].name} and rejoin the ${FACTIONS[c.fac].name}.` }, true);
+    return true;
+  }
+
+  /** Attack orders from god mode, launched on the next tactical update (where positions are known). */
+  private orders: { fac: number; target: string; day: number }[] = [];
+  orderAttack(fac: number, target: string, day: number) {
+    const c = this.colonies.find(x => x.id === target);
+    if (!c || !c.active || c.owner === fac || !this.coloniesOf(fac).length) return false;
+    if (!this.atWar(fac, c.owner)) this.forceWar(fac, c.owner, day);
+    if (!this.atWar(fac, c.owner)) return false;
+    this.orders.push({ fac, target, day });
+    return true;
   }
 
   canFound(body: string) { return !this.colonies.some(c => c.body === body); }

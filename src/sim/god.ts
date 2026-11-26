@@ -17,7 +17,7 @@ export const RANKS = [
   { name: "Demiurge", at: 1200, blurb: "Even the Sun answers to you." },
 ] as const;
 
-export type PowerTarget = "none" | "pair" | "faction" | "war" | "colonySite" | "terraform" | "body";
+export type PowerTarget = "none" | "pair" | "faction" | "war" | "colonySite" | "terraform" | "body" | "colonyFaction" | "colony";
 
 export interface Power {
   id: string;
@@ -44,10 +44,20 @@ export const POWERS: Power[] = [
     desc: "End a war at once with a treaty. Both sides keep what they hold." },
   { id: "war", name: "Call to arms", icon: "swords", rank: 2, cost: 45, target: "pair", from: 2060,
     desc: "Make two powers declare war on each other right now." },
-  { id: "colony", name: "Plant a colony", icon: "home", rank: 2, cost: 70, target: "colonySite", from: 2045,
+  { id: "colony", name: "Plant a colony", icon: "home", rank: 2, cost: 70, target: "colonySite", from: 1957,
     desc: "Found a settlement on an unclaimed world for the power of your choice." },
   { id: "asteroid", name: "Asteroid strike", icon: "flame", rank: 2, cost: 50, target: "body", from: 1944,
     desc: "Steer a 1 km asteroid into any world. It leaves a scorched crater that fades over centuries, and wrecks any colony it hits." },
+  { id: "shower", name: "Meteor shower", icon: "flame", rank: 0, cost: 0, target: "body", from: 1944,
+    desc: "Rain a swarm of small meteorites onto a world over a few seconds." },
+  { id: "shield", name: "Planetary shield", icon: "sparkle", rank: 0, cost: 0, target: "body", from: 1944,
+    desc: "For 50 years, anything falling toward this world bursts harmlessly in space." },
+  { id: "give", name: "Hand over a colony", icon: "home", rank: 0, cost: 0, target: "colonyFaction", from: 2032,
+    desc: "Give any settlement to the power of your choice." },
+  { id: "uprising", name: "Spark an uprising", icon: "alert", rank: 0, cost: 0, target: "colony", from: 2032,
+    desc: "Settlers rise up and return the colony to the power that founded it." },
+  { id: "attack", name: "Order an attack", icon: "swords", rank: 0, cost: 0, target: "colonyFaction", from: 2045,
+    desc: "Send the chosen power's warships against a colony right now. Declares war if needed." },
   { id: "terraform", name: "Terraform", icon: "seedling", rank: 3, cost: 140, target: "terraform", from: 1957,
     desc: "Over about 60 years, give a world air, seas and plant life. Watch it turn blue and green." },
   { id: "extinction", name: "Extinction-class impact", icon: "bolt", rank: 4, cost: 220, target: "body", from: 1944,
@@ -57,7 +67,7 @@ export const POWERS: Power[] = [
 ];
 
 /** Worlds that can be terraformed, and unclaimed worlds where a colony can be planted. */
-export const TERRAFORMABLE = ["mars", "venus", "moon", "mercury", "callisto", "ganymede", "titania"];
+export const TERRAFORMABLE = ["mars", "venus", "moon", "mercury", "io", "europa", "ganymede", "callisto", "titan", "enceladus", "titania", "triton", "ceres"];
 export const COLONY_SITES = ["io", "phobos", "deimos", "moon", "venus", "mercury", "callisto", "ganymede", "europa", "enceladus", "titan", "titania", "triton", "ceres"];
 
 export interface Goal {
@@ -98,7 +108,8 @@ export class God {
   constructor(private civ: Civ, private news: NewsFeed, private bus: EventBus, private impacts: Impacts) {}
 
   get rank() { let r = 0; RANKS.forEach((k, i) => { if (this.earned >= k.at) r = i; }); return r; }
-  costOf(p: Power) { return Math.round(p.cost * (1 + 0.25 * (this.uses[p.id] ?? 0))); }
+  /** Powers are free: Influence and ranks are a score of how far you've come, not a currency. */
+  costOf(_p: Power) { return 0; }
 
   /** 0–1 terraforming progress for a body at the given year (Mars also terraforms on its own from 2350). */
   terraformLevel(body: string, year: number) {
@@ -147,10 +158,8 @@ export class God {
 
   /** Which powers can be used right now, and why not if not. */
   availability(p: Power, year: number): string | null {
-    if (this.rank < p.rank) return `Unlocks at rank ${RANKS[p.rank].name}`;
     const from = p.from === 2060 ? warStartYear() : p.from;
     if (from && year < from) return from >= 2045 ? `Available once ${from === warStartYear() ? "warships exist" : "colonies exist"} (~${from})` : `Available from ${from}`;
-    if (this.influence < this.costOf(p)) return "Not enough Influence";
     if (p.id === "peace" && !this.civ.wars.length) return "No wars to end";
     if (p.id === "dyson" && (this.dysonFrom !== null || year >= 2400)) return "The swarm is already growing";
     return null;
@@ -183,6 +192,11 @@ export class God {
       }
       case "asteroid": this.impacts.launch(a as string, "large", "God strike"); break;
       case "extinction": this.impacts.launch(a as string, "huge", "God strike"); break;
+      case "shower": this.impacts.shower(a as string); break;
+      case "shield": this.impacts.shield(a as string, year + 50); this.news.add({ day, cat: "milestone", focus: a as string, title: `A shield over ${cap(a as string)}`, body: "For the next 50 years anything falling toward it will burst in space." }); break;
+      case "give": if (!this.civ.handOver(a as string, b as number, day)) return "That colony isn't active"; break;
+      case "uprising": if (!this.civ.uprising(a as string, day)) return "That colony already belongs to its founders"; break;
+      case "attack": if (!this.civ.orderAttack(b as number, a as string, day)) return "They can't attack their own colony, or have no colonies to launch from"; break;
       case "dyson": this.dysonFrom = year; this.news.add({ day, cat: "milestone", focus: "sun", major: true, title: "The Dyson swarm begins early", body: "The first solar collectors start circling the Sun, centuries ahead of schedule." }); break;
     }
     const cost = this.costOf(p);

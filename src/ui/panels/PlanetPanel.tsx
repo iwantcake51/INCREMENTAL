@@ -9,20 +9,29 @@ import { Bar, FacChip, Globe, Section } from "../common";
 import { selected, tick } from "../store";
 import { drawVignette } from "../vignette";
 import { toF } from "../units";
+import { localSky } from "../localSky";
+
+const SKY_TARGETS: Record<string, string[]> = { mars: ["phobos", "deimos"], europa: ["jupiter", "io", "ganymede", "callisto"], enceladus: ["saturn", "titan"] };
 
 const LIGHT_MIN_PER_AU = 8.3167;
 const fmtLight = (au: number) => { const m = au * LIGHT_MIN_PER_AU; return m < 60 ? `${m.toFixed(1)} min` : `${(m / 60).toFixed(2)} h`; };
 
-function Vignette({ kind }: { kind: string }) {
+function Vignette({ kind, body }: { kind: string; body: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     let raf = 0;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const w = ctl().world;
-    const loop = (t: number) => { if (ref.current) drawVignette(ref.current, kind, reduced ? 0 : t / 1000, { day: w.day, daysPerSec: w.playing ? w.speed : 0 }); raf = requestAnimationFrame(loop); };
+    const loop = (t: number) => {
+      // The real sky over the scene: the Sun and every moon you could see from there, with their phases
+      const viewFrom = kind === "europa" ? "europa" : kind === "enceladus" ? "enceladus" : body;
+      const sky = localSky(w, viewFrom, SKY_TARGETS[kind] ?? []) ?? undefined;
+      if (ref.current) drawVignette(ref.current, kind, reduced ? 0 : t / 1000, { day: w.day, daysPerSec: w.playing ? w.speed : 0, sky });
+      raf = requestAnimationFrame(loop);
+    };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [kind]);
+  }, [kind, body]);
   return <canvas class="vignette" ref={ref} aria-label="Animated scene of life on this world" />;
 }
 
@@ -151,7 +160,7 @@ export function PlanetPanel() {
 
       {planet && (
         <Section title={`Life on ${planet.name}`}>
-          <Vignette kind={planet.life.kind} />
+          <Vignette kind={planet.life.kind} body={planet.id} />
           <div class="life-head"><span class={`pill ${planet.life.status}`}>{planet.life.statusText}</span><span class="mono">{planet.life.count}</span></div>
           <p class="lead">{toF(planet.life.text)}</p>
           <div class="hab">

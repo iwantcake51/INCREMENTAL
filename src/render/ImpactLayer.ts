@@ -100,6 +100,7 @@ export class ImpactLayer {
     const live = new Set<number>();
     for (const r of imp.incoming) {
       if (n >= MAX_ROCKS) break;
+      if (r.t < 0) continue; // still waiting its turn (meteor showers)
       const b = this.world.bodies.get(r.body)!;
       const target = this.surfacePoint(r.body, r.dir, w2);
       const k = Math.pow(Math.min(1, r.t / r.travel), 2.2);

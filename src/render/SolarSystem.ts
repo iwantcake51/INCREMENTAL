@@ -301,6 +301,14 @@ export class SolarSystem {
       // Eclipses (only meaningful while the Moon is in its real position)
       if (b.id === "earth") u.uOccluder.value.set(moonBody.pos.x, moonBody.pos.y, moonBody.pos.z, moonBody.radius * 1.05);
       else if (b.id === "moon") u.uOccluder.value.set(earthBody.pos.x, earthBody.pos.y, earthBody.pos.z, moonBody.orbitR * 0.021);
+      if (b.id === "moon") {
+        // Earthshine: sunlight bounced off Earth lights the Moon's night side (strongest near new moon)
+        u.uMoonPos.value.copy(earthBody.pos);
+        u.uMoonObj.value.subVectors(earthBody.pos, b.pos).normalize().applyQuaternion(tmpQ);
+        const toSun = tmpV.copy(earthBody.pos).negate().normalize();
+        const toMoon = new Vector3().subVectors(b.pos, earthBody.pos).normalize();
+        u.uMoonLight.value = ((1 + toSun.dot(toMoon)) / 2) * 1.6;
+      }
       if (b.id === "earth") {
         u.uMoonPos.value.copy(moonBody.pos);
         u.uMoonObj.value.subVectors(moonBody.pos, b.pos).normalize().applyQuaternion(tmpQ);

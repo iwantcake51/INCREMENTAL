@@ -82,11 +82,21 @@ export class Impacts {
   }
 
   /** Send a rock at a world (also used by god powers and crashing probes). */
-  launch(body: string, size: ImpactSize, label: string, dir?: [number, number, number]) {
+  launch(body: string, size: ImpactSize, label: string, dir?: [number, number, number], from?: [number, number, number], travel?: number, delay = 0) {
     const d = dir ?? this.aim ?? randomDir(this.rng);
     this.aim = null;
-    this.incoming.push({ id: this.nextId++, body, dir: d, size, from: randomDir(this.rng), t: 0, travel: size === "tiny" ? 2.2 : 3.6, label });
+    this.incoming.push({ id: this.nextId++, body, dir: d, size, from: from ?? randomDir(this.rng), t: -delay, travel: travel ?? (size === "tiny" ? 2.2 : 3.6), label });
   }
+
+  /** A swarm of small rocks over a few seconds. */
+  shower(body: string) {
+    for (let i = 0; i < 9; i++) this.launch(body, this.rng.chance(0.7) ? "tiny" : "small", "Meteor", undefined, undefined, 1.8 + this.rng.range(0, 0.8), i * 0.35);
+  }
+
+  /** Worlds protected from impacts until the given year. */
+  shields: Record<string, number> = {};
+  shield(body: string, untilYear: number) { this.shields[body] = untilYear; this.version++; }
+  onBlast?: (body: string, dir: [number, number, number]) => void;
 
   /** A spacecraft crashing into a world: a tiny crater right away, no incoming rock. */
   crash(body: string, dir: [number, number, number], day: number) {
@@ -130,6 +140,7 @@ export class Impacts {
   private hit(r: Incoming, day: number, year: number, bodies: Bodies, civ: Civ, news: NewsFeed, post: (item: NewsItem, toast: boolean) => void) {
     const b = bodies.get(r.body);
     if (!b) return;
+    if ((this.shields[r.body] ?? -Infinity) > year) { this.onBlast?.(r.body, r.dir); return; }   // burst on the shield
     const size = ANGULAR[r.size] * (GAS.has(r.body) ? 1.6 : 1);
     this.craters.push({ id: this.nextId++, body: r.body, dir: r.dir, size, year, realAge: 0 });
     this.onHit?.(r.body, r.dir, r.size);
@@ -141,7 +152,8 @@ export class Impacts {
     // A colony is wrecked if the blast lands near it (an extinction-class impact wrecks it anywhere on the world).
     const colony = civ.colonies.find(c => {
       if (!c.active || c.body !== r.body) return false;
-      if (r.size === "huge" || r.body === "earth") return true;
+      if (r.size === "huge") return true;
+      if (r.body === "earth") return false; // Earth is too big and spread out for one strike short of an extinction event to wreck it
       const site = SETTLEMENT_SITES[c.body];
       if (!site) return true;
       const la = (site[0] * Math.PI) / 180, lo = (site[1] * Math.PI) / 180;
@@ -153,6 +165,8 @@ export class Impacts {
       post(news.add({ day, cat: "disaster", focus: r.body, facs: [colony.owner], major: true,
         title: `Asteroid devastates ${colony.name}`,
         body: `An impact on ${b.name} wrecks the ${FACTIONS[colony.owner].name} settlement. Survivors will need decades to rebuild.` }), true);
+    } else if (r.label === "Meteor") {
+      // Meteor mode and showers: no headline for every rock
     } else if (r.label !== "asteroid") {
       // Real or deliberate impacts get their own story (history items already cover Luna 2 and SL9)
       if (r.label.startsWith("God")) post(news.add({ day, cat: "disaster", focus: r.body, major: true, title: `Impact on ${b.name}`, body: `A ${r.size} asteroid strikes ${b.name}, blasting out a fresh crater.` }), true);

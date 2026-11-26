@@ -1,3 +1,4 @@
+import { Vector3 } from "three";
 import { Bodies } from "./bodies";
 import { Civ, type CivSnapshot } from "./civ";
 import { EventBus } from "./events";
@@ -70,6 +71,11 @@ export class World {
     this.impacts = new Impacts(makeRng(seed + 7));
     this.god = new God(this.civ, this.news, this.bus, this.impacts);
     this.impacts.onHit = (body, dir, size) => this.bus.emit({ type: "impact", body, dir, size });
+    this.impacts.onBlast = (body, dir) => {
+      const b = this.bodies.get(body)!;
+      const at = this.bodies.localToWorld(b, { x: dir[0], y: dir[1], z: dir[2] }, new Vector3()).multiplyScalar(b.radius * 1.25).add(b.pos);
+      this.bus.emit({ type: "blast", at, color: "#9fd8ff", size: Math.max(0.4, b.radius * 1.5) });
+    };
     this.civ.reset(this.day);
     this.impacts.reset(this.day);
   }

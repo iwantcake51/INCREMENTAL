@@ -119,6 +119,13 @@ export class Controller {
     return err;
   }
 
+  toggleMeteors(size?: "small" | "large" | "huge") {
+    const e = this.engine;
+    e.meteorMode = size ?? (e.meteorMode ? null : "large");
+    say(e.meteorMode ? "Meteor mode on: click any world to strike it (M to stop)" : "Meteor mode off");
+    tick.value++;
+  }
+
   // ---------- save, load and share ----------
 
   save() {
@@ -201,6 +208,7 @@ export class Controller {
       case "/": e.preventDefault(); dialog.value = "search"; break;
       case "?": dialog.value = dialog.value === "help" ? null : "help"; break;
       case "u": hideUI.value = !hideUI.value; break;
+      case "m": this.toggleMeteors(); break;
       case "S": this.screenshot(); break;
       case "Tab": e.preventDefault(); panelOpen.value = !panelOpen.value; break;
       case "Escape": if (dialog.value) dialog.value = null; else if (hideUI.value) hideUI.value = false; break;

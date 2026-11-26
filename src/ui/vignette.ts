@@ -1,7 +1,8 @@
 // Animated "life on this world" scenes for the planet panel (2D canvas), carried over from the original orrery.
 /* eslint-disable */
 import { toF } from "./units";
-import { drawEarthScene, type SceneEnv } from "./earthScene";
+import { drawAlienScene, drawEarthScene, type SceneEnv } from "./earthScene";
+import type { LocalSky } from "./localSky";
 let vx: CanvasRenderingContext2D;
 let VW = 0, VH = 0;
 const rnd = (seed => () => (seed = (seed * 16807) % 2147483647) / 2147483647)(42);
@@ -90,6 +91,10 @@ function europa(ts: number, w: number, h: number){
   const bands = ["#e8cfa6","#b98a5c","#efdcb8","#a87348","#e3c79c","#c49a6c"];
   bands.forEach((c,k) => { vx.fillStyle = c; vx.fillRect(jx-jr, jy-jr + k*jr*2/6, jr*2, jr*2/6+1); });
   vx.fillStyle = "#c4553a"; vx.beginPath(); vx.ellipse(jx - jr*.35 + Math.sin(ts*.2)*3, jy + jr*.35, 14, 8, 0, 0, 7); vx.fill(); vx.restore();
+  // Jupiter's real phase as seen from Europa, and the other Galilean moons where they really are
+  const jup = curSky?.objects.find(o => o.id === "jupiter");
+  if (jup) phaseShadow(jx, jy, jr, jup.elong, 0.92);
+  skyMoons("jupiter", jx, jy, w / 110, { io: "#e9d27a", ganymede: "#b9ab95", callisto: "#7f7262" });
   vx.fillStyle = lin(h*.38, h*.5, ["#f2f6ff","#c8d8ea"]); vx.fillRect(0, h*.38, w, h*.12);
   vx.strokeStyle = "rgba(160,90,60,.5)"; vx.lineWidth = 1; for (let k=0;k<6;k++){ vx.beginPath(); vx.moveTo(w*k*.18, h*.4); vx.lineTo(w*k*.18+30, h*.47); vx.stroke(); }
   vx.fillStyle = lin(h*.5, h, ["#1a4f8a","#0b2750","#041027"]); vx.fillRect(0, h*.5, w, h*.5);
@@ -108,7 +113,10 @@ function enceladus(ts: number, w: number, h: number){
   const sx = w*.72, sy = h*.25;
   vx.strokeStyle = "rgba(234,211,154,.55)"; vx.lineWidth = 3; vx.beginPath(); vx.ellipse(sx, sy, 70, 14, -.15, 0, 7); vx.stroke();
   vx.fillStyle = lin(sy-26, sy+26, ["#f5e3b5","#c9a86a"]); vx.beginPath(); vx.arc(sx, sy, 24, 0, 7); vx.fill();
+  const sat = curSky?.objects.find(o => o.id === "saturn");
+  if (sat) phaseShadow(sx, sy, 24, sat.elong, 0.9);
   vx.strokeStyle = "rgba(234,211,154,.8)"; vx.lineWidth = 3; vx.beginPath(); vx.ellipse(sx, sy, 70, 14, -.15, Math.PI*.05, Math.PI*.95); vx.stroke();
+  skyMoons("saturn", sx, sy, w / 160, { titan: "#e3a94f" });
   vx.fillStyle = lin(h*.65, h, ["#eef4ff","#b7c8dc"]); vx.beginPath(); vx.moveTo(0, h*.7);
   for (let x=0;x<=w;x+=8) vx.lineTo(x, h*.68 + Math.sin(x*.02)*3); vx.lineTo(w,h); vx.lineTo(0,h); vx.fill();
   vx.strokeStyle = "#5e7fa8"; vx.lineWidth = 2;
@@ -147,6 +155,49 @@ function iceWorld(ts: number, w: number, h: number, c1: string, c2: string, geys
 function uranus(ts: number, w: number, h: number){ iceWorld(ts, w, h, "#d6fbfb", "#4aa7b4", false, "−195 °C · NO KNOWN LIFE"); }
 function neptune(ts: number, w: number, h: number){ iceWorld(ts, w, h, "#a9bfff", "#24398f", true, "−200 °C · 2,000 KM/H WINDS"); }
 
+
+// ---------- Real phases for the planets and moons in these skies ----------
+let curSky: LocalSky | undefined;
+const maskCache = new Map<string, HTMLCanvasElement>();
+/** Darken the night side of a disc for a body at phase angle `elong` (0 new, π full), with a smooth terminator. */
+function phaseShadow(cx: number, cy: number, r: number, elong: number, darkness = 0.9) {
+  const R = Math.max(2, Math.round(r)), key = R + "|" + Math.round((elong * 180) / Math.PI / 2) + "|" + darkness;
+  let c = maskCache.get(key);
+  if (!c) {
+    if (maskCache.size > 300) maskCache.clear();
+    c = document.createElement("canvas"); c.width = c.height = R * 2;
+    const g = c.getContext("2d")!, img = g.createImageData(R * 2, R * 2);
+    const lx = Math.sin(elong), lz = -Math.cos(elong);
+    for (let y = 0; y < R * 2; y++) for (let x = 0; x < R * 2; x++) {
+      const nx = (x + 0.5 - R) / R, ny = -(y + 0.5 - R) / R, r2 = nx * nx + ny * ny;
+      if (r2 > 1) continue;
+      const ndl = nx * lx + Math.sqrt(1 - r2) * lz;
+      const t = Math.min(1, Math.max(0, (ndl + 0.12) / 0.42)), lit = Math.pow(Math.max(ndl, 0), 0.7) * t * t * (3 - 2 * t);
+      const i = (y * R * 2 + x) * 4;
+      img.data[i] = 4; img.data[i + 1] = 5; img.data[i + 2] = 10;
+      img.data[i + 3] = Math.round(255 * (1 - lit) * darkness * Math.min(1, (1 - Math.sqrt(r2)) * R * 1.5));
+    }
+    g.putImageData(img, 0, 0);
+    maskCache.set(key, c);
+  }
+  vx.drawImage(c, cx - R, cy - R);
+}
+/** Small moons in the sky at their real positions relative to a reference body drawn at (rx, ry). */
+function skyMoons(ref: string, rx: number, ry: number, pxPerDeg: number, colors: Record<string, string>) {
+  const sky = curSky; if (!sky) return;
+  const r0 = sky.objects.find(o => o.id === ref); if (!r0) return;
+  for (const o of sky.objects) {
+    if (o.id === ref || !colors[o.id]) continue;
+    let dAz = o.az - r0.az; dAz = ((dAz + 540) % 360) - 180;
+    const x = rx + dAz * pxPerDeg, y = ry - (o.alt - r0.alt) * pxPerDeg;
+    if (x < -10 || x > VW + 10 || y < -10 || y > VH * 0.45) continue;
+    const r = Math.max(2.2, Math.min(9, o.size * pxPerDeg));
+    vx.fillStyle = colors[o.id]; vx.beginPath(); vx.arc(x, y, r, 0, 7); vx.fill();
+    phaseShadow(x, y, r, o.elong);
+    vx.font = "500 9px 'IBM Plex Sans', sans-serif"; vx.fillStyle = "rgba(230,230,240,.75)"; vx.fillText(o.id.charAt(0).toUpperCase() + o.id.slice(1), x + r + 3, y + 3);
+  }
+}
+
 const SCENES: Record<string, (ts: number, w: number, h: number) => void> = { earth, mercury, venus, mars, europa, enceladus, uranus, neptune };
 
 /** Draw one frame of the scene for `kind` (a LifeInfo.kind) into the canvas. */
@@ -159,7 +210,9 @@ export function drawVignette(canvas: HTMLCanvasElement, kind: string, ts: number
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   vx = ctx; VW = w; VH = h;
   vx.clearRect(0, 0, w, h);
+  curSky = env?.sky;
   if (kind === "earth" && env) { drawEarthScene(ctx, w, h, ts, env); return; }
+  if ((kind === "mars" || kind === "mercury") && env?.sky && drawAlienScene(ctx, w, h, ts, kind, env.sky)) return;
   (SCENES[kind] ?? mercury)(ts, w, h);
   // Lens finish for every scene: soft vignette, depth haze and fine grain, so nothing looks flat
   const haze = vx.createLinearGradient(0, 0, 0, h);

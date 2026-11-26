@@ -81,7 +81,7 @@ describe("god mode", () => {
     expect(w.god.rank).toBeGreaterThanOrEqual(1);
     const before = w.god.influence;
     expect(w.god.use("calm", w.day)).toBeNull();
-    expect(w.god.influence).toBeLessThan(before);
+    expect(w.god.influence).toBeGreaterThanOrEqual(before); // powers are free
     expect(w.god.goals.has("power")).toBe(true);
   });
 

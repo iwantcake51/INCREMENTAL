@@ -2,6 +2,8 @@
 // the Moon with its real phase, seasons, weather, a lake, and a village whose lights grow over the decades.
 import { moonPosition, sunLongitude } from "../sim/sky";
 import { DAY_MS, J2000, yearOf } from "../sim/time";
+import { renderSky } from "./earthSky";
+import type { LocalSky, SkyObject } from "./localSky";
 
 const LAT = 46.5, LON = 8.0, RAD = Math.PI / 180;
 type RGB = [number, number, number];
@@ -14,7 +16,7 @@ const hash = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453
 const noise1 = (x: number, seed: number) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash(i + seed) * (1 - u) + hash(i + 1 + seed) * u; };
 const ridge = (x: number, seed: number, oct = 5) => { let s = 0, a = 0.5, f = 1; for (let k = 0; k < oct; k++) { s += a * noise1(x * f, seed + k * 17); a *= 0.5; f *= 2.1; } return s; };
 
-export interface SceneEnv { day: number; daysPerSec: number }
+export interface SceneEnv { day: number; daysPerSec: number; /** The sky seen from the surface (Sun and moons, with phases). */ sky?: LocalSky }
 
 interface Layout { w: number; h: number; stars: [number, number, number][]; trees: { x: number; s: number; kind: number; seed: number }[]; houses: { x: number; w: number; h: number }[] }
 let layout: Layout | null = null;
@@ -75,6 +77,35 @@ export function drawEarthScene(g: CanvasRenderingContext2D, w: number, h: number
   const grayH = mix(horizon, [0.68, 0.7, 0.74].map(c => c * (0.15 + 0.85 * day)) as RGB, overcast * 0.85);
 
   const horizonY = h * 0.6;
+  const shoreY = horizonY + 6;
+  const lakeTop = shoreY, lakeBot = h * 0.8;
+  const winterIce = ss(0.88, 1, winter);
+  const sx = w / 2 + (sun.az / 95) * w * 0.48, sy = horizonY - (a / 50) * horizonY * 0.95;
+  const m = moonPosition(env.day);
+  const elong = ((m.lon - sunLongitude(env.day)) % 360 + 360) % 360;
+  const mdec = 23.44 * Math.sin(m.lon * RAD) + m.lat;
+  const moon = altAz(mdec, 15 * (local - 12) - elong);
+  const snowlineGL = 0.58 - winter * 0.38 - snowGround * 0.1;
+
+  // Season colors for the shader (grass, leaves, blossom, bare winter trees, flowers) and village lights by decade
+  const grassC: RGB = doy < 80 || doy >= 340 ? hex("#6b7a4a") : doy < 140 ? hex("#79b24f") : doy < 250 ? hex("#4f8b36") : doy < 300 ? hex("#a7913f") : hex("#7a6a40");
+  const foliageC: RGB = doy < 100 ? hex("#5f6b45") : doy < 140 ? hex("#9ed27a") : doy < 255 ? hex("#3e7a33") : doy < 290 ? hex("#d98b2e") : doy < 320 ? hex("#b5502e") : hex("#5a4a3a");
+  const villageLit = Math.min(1, 0.12 + Math.max(0, year - 1944) / 70);
+
+  // The whole landscape is drawn by a GPU shader: noise clouds, wave-distorted reflections, trees and their shadows.
+  const dpr = g.getTransform().a || 1;
+  const sunCol: RGB = mix([1, 0.55, 0.25], [1, 0.97, 0.88], ss(0, 20, a));
+  const glSky = renderSky(Math.round(w * dpr), Math.round(h * dpr), {
+    time: ts, sunAlt: a, day, gold, night, cloud, overcast, snowline: snowlineGL, ice: winterIce, stars: night * (1 - overcast),
+    sun: [sx / w, 1 - sy / h], moon: [(w / 2 + (moon.az / 95) * w * 0.48) / w, 1 - (horizonY - (moon.alt / 50) * horizonY * 0.95) / h],
+    moonR: 7 / h, moonVis: moon.alt > -2 ? 1 : 0, elong: elong * RAD, wind: 0.6 + hash(dayIdx * 1.7) * 1.2, shine: 1,
+    zenith: grayZ, horizon: grayH, light, sunCol,
+    sunAz: sun.az, snow: snowGround, village: villageLit, bare: doy >= 320 || doy < 95 ? 1 : 0, blossom: doy > 100 && doy < 135 ? 1 : 0,
+    flowers: doy > 110 && doy < 230 ? 1 : 0, grass: grassC, foliage: foliageC,
+    horizonY: 1 - horizonY / h, lakeTop: 1 - lakeTop / h, lakeBot: 1 - lakeBot / h,
+  });
+  if (glSky) g.drawImage(glSky, 0, 0, w, h);
+  else {
   const sky = g.createLinearGradient(0, 0, 0, horizonY);
   sky.addColorStop(0, css(grayZ)); sky.addColorStop(1, css(grayH));
   g.fillStyle = sky; g.fillRect(0, 0, w, horizonY + 1);
@@ -89,7 +120,6 @@ export function drawEarthScene(g: CanvasRenderingContext2D, w: number, h: number
   }
 
   // Sun
-  const sx = w / 2 + (sun.az / 95) * w * 0.48, sy = horizonY - (a / 50) * horizonY * 0.95;
   if (a > -3) {
     const sc: RGB = mix([1, 0.55, 0.25], [1, 0.97, 0.88], ss(0, 20, a));
     const glow = g.createRadialGradient(sx, sy, 0, sx, sy, h * 0.55);
@@ -100,10 +130,6 @@ export function drawEarthScene(g: CanvasRenderingContext2D, w: number, h: number
   }
 
   // Moon with its real phase
-  const m = moonPosition(env.day);
-  const elong = ((m.lon - sunLongitude(env.day)) % 360 + 360) % 360;
-  const mdec = 23.44 * Math.sin(m.lon * RAD) + m.lat;
-  const moon = altAz(mdec, 15 * (local - 12) - elong);
   if (moon.alt > -2) {
     const mx = w / 2 + (moon.az / 95) * w * 0.48, my = horizonY - (moon.alt / 50) * horizonY * 0.95;
     if (mx > -10 && mx < w + 10) {
@@ -216,22 +242,7 @@ export function drawEarthScene(g: CanvasRenderingContext2D, w: number, h: number
     }
   });
 
-  // Village on the far shore: lights spread as the decades pass
-  const shoreY = horizonY + 6;
-  const lit = night * Math.min(1, 0.12 + Math.max(0, year - 1944) / 70);
-  L.houses.forEach((hs, i) => {
-    const x = hs.x * w, hh = hs.h * h * 2.2, ww = hs.w * w * 1.6;
-    g.fillStyle = css(mul(hex("#c9b9a0"), light)); g.fillRect(x, shoreY - hh, ww, hh);
-    g.fillStyle = css(mul(hex("#7a3f2c"), light)); g.beginPath(); g.moveTo(x - 1, shoreY - hh); g.lineTo(x + ww / 2, shoreY - hh - hh * 0.6); g.lineTo(x + ww + 1, shoreY - hh); g.fill();
-    if (lit > 0.05 && hash(i * 2.3) < lit + 0.15) {
-      g.fillStyle = `rgba(255,205,130,${Math.min(1, lit * 1.3) * (0.8 + 0.2 * Math.sin(ts * 3 + i))})`;
-      g.fillRect(x + ww * 0.3, shoreY - hh * 0.6, 1.4, 1.4);
-    }
-  });
-
   // Lake: reflects the sky and mountains, with ripples and a glitter path under a low sun
-  const lakeTop = shoreY, lakeBot = h * 0.8;
-  const winterIce = ss(0.88, 1, winter);
   const lg = g.createLinearGradient(0, lakeTop, 0, lakeBot);
   lg.addColorStop(0, css(mul(mix(grayH, [0.2, 0.3, 0.4], 0.35), [0.85, 0.9, 0.95]))); lg.addColorStop(1, css(mul(mix(grayZ, [0.05, 0.12, 0.2], 0.5), [0.8, 0.85, 0.9])));
   g.fillStyle = lg; g.fillRect(0, lakeTop, w, lakeBot - lakeTop);
@@ -251,6 +262,21 @@ export function drawEarthScene(g: CanvasRenderingContext2D, w: number, h: number
   g.strokeStyle = css(mul([0.9, 0.95, 1], light), 0.18 * (1 - winterIce)); g.lineWidth = 1;
   for (let k = 0; k < 7; k++) { const yy = lakeTop + 4 + k * 4.5; g.beginPath(); for (let x = 0; x <= w; x += 6) g.lineTo(x, yy + Math.sin(x * 0.07 + ts * 1.6 + k) * 0.8); g.stroke(); }
   if (winterIce > 0) { g.fillStyle = css(mul([0.85, 0.9, 0.95], light), 0.55 * winterIce); g.fillRect(0, lakeTop, w, lakeBot - lakeTop); }
+  }
+
+  if (!glSky) {
+  // Village on the far shore: lights spread as the decades pass
+  const lit = night * Math.min(1, 0.12 + Math.max(0, year - 1944) / 70);
+  L.houses.forEach((hs, i) => {
+    const x = hs.x * w, hh = hs.h * h * 2.2, ww = hs.w * w * 1.6;
+    g.fillStyle = css(mul(hex("#c9b9a0"), light)); g.fillRect(x, shoreY - hh, ww, hh);
+    g.fillStyle = css(mul(hex("#7a3f2c"), light)); g.beginPath(); g.moveTo(x - 1, shoreY - hh); g.lineTo(x + ww / 2, shoreY - hh - hh * 0.6); g.lineTo(x + ww + 1, shoreY - hh); g.fill();
+    if (lit > 0.05 && hash(i * 2.3) < lit + 0.15) {
+      g.fillStyle = `rgba(255,205,130,${Math.min(1, lit * 1.3) * (0.8 + 0.2 * Math.sin(ts * 3 + i))})`;
+      g.fillRect(x + ww * 0.3, shoreY - hh * 0.6, 1.4, 1.4);
+    }
+  });
+
   if (lit > 0.05) L.houses.forEach((hs, i) => { if (hash(i * 2.3) < lit + 0.15) { g.fillStyle = `rgba(255,205,130,${lit * 0.35})`; g.fillRect(hs.x * w + hs.w * w * 0.5, lakeTop + 4 + hash(i) * 10, 1, 4); } });
 
   // Meadow in the foreground: the season shows in the grass and the trees
@@ -295,6 +321,7 @@ export function drawEarthScene(g: CanvasRenderingContext2D, w: number, h: number
       }
     }
   }
+  }
 
   // Weather: falling snow or rain
   if (precip) {
@@ -330,4 +357,39 @@ export function drawEarthScene(g: CanvasRenderingContext2D, w: number, h: number
   g.fillStyle = "rgba(255,255,255,0.92)";
   g.fillText(`Swiss Alps, 46.5° N · ${time} · ${season}, ${weather}`, 10, h - 10);
   g.shadowBlur = 0;
+}
+
+/** Mars (Jezero Crater) or Mercury, lit by the sun at the world's local solar time. Returns false if WebGL is unavailable. */
+export function drawAlienScene(g: CanvasRenderingContext2D, w: number, h: number, ts: number, kind: "mars" | "mercury", sky: LocalSky): boolean {
+  const hour = sky.hour, alt = sky.sunAlt, az = sky.sunAz;
+  const day = ss(-5, 6, alt), gold = ss(-4, 2, alt) * (1 - ss(6, 16, alt)), night = 1 - ss(-12, -3, alt);
+  const horizonY = h * 0.6;
+  const sx = w / 2 + (az / 95) * w * 0.48, sy = horizonY - (alt / 50) * horizonY * 0.95;
+  const light: RGB = kind === "mars"
+    ? mix(mix([0.05, 0.04, 0.05], [0.95, 0.86, 0.76], day), [1.0, 0.7, 0.55], gold * 0.4)
+    : mix([0.0, 0.0, 0.0], [1.25, 1.22, 1.15], ss(-1, 2, alt));
+  const sunCol: RGB = kind === "mars" ? mix([0.75, 0.8, 1.0], [1, 0.97, 0.92], ss(0, 15, alt)) : [1, 0.98, 0.92];
+  const toScreen = (o: SkyObject): [number, number] => [0.5 + (o.az / 95) * 0.48, 1 - (horizonY - (o.alt / 50) * horizonY * 0.95) / h];
+  const phobos = sky.objects.find(o => o.id === "phobos"), deimos = sky.objects.find(o => o.id === "deimos");
+  const dpr = g.getTransform().a || 1;
+  const img = renderSky(Math.round(w * dpr), Math.round(h * dpr), {
+    moon2: deimos ? toScreen(deimos) : [0, 0], moon2R: 0.007, moon2Vis: deimos && deimos.alt > -1 ? 1 : 0, elong2: deimos?.elong ?? 0, shine: 0.6,
+    mode: kind === "mars" ? 1 : 2, time: ts, sunAlt: alt, sunAz: az, day, gold, night, cloud: 0, overcast: 0, snowline: 9, ice: 0,
+    stars: kind === "mercury" ? 1 : night, sun: [sx / w, 1 - sy / h], moon: phobos ? toScreen(phobos) : [0, 0], moonR: 0.017, moonVis: phobos && phobos.alt > -1 ? 1 : 0, elong: phobos?.elong ?? 0, wind: 1,
+    snow: 0, village: 0, bare: 0, blossom: 0, flowers: 0, zenith: [0, 0, 0], horizon: [0.8, 0.6, 0.45], light, sunCol, grass: [0, 0, 0], foliage: [0, 0, 0],
+    horizonY: 1 - horizonY / h, lakeTop: 0, lakeBot: 0,
+  });
+  if (!img) return false;
+  g.drawImage(img, 0, 0, w, h);
+  const vg = g.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, w * 0.75);
+  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.38)");
+  g.fillStyle = vg; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 140; i++) { g.fillStyle = `rgba(255,255,255,${hash(i + Math.floor(ts * 12)) * 0.03})`; g.fillRect(hash(i * 1.1 + ts) * w, hash(i * 2.2 + ts) * h, 1, 1); }
+  const hh = Math.floor(((hour % 24) + 24) % 24), mm = Math.floor((hour - Math.floor(hour)) * 60);
+  const time = `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}`;
+  g.font = "600 11px 'IBM Plex Sans', system-ui, sans-serif";
+  g.shadowColor = "rgba(0,0,0,0.8)"; g.shadowBlur = 4; g.fillStyle = "rgba(255,255,255,0.92)";
+  g.fillText(kind === "mars" ? `Jezero Crater, Mars · ${time} local · ${alt > 0 ? "daytime" : "night"}` : `Mercury, Caloris plains · ${time} local · ${alt > 0 ? "day (800 °F)" : "night (−290 °F)"}`, 10, h - 10);
+  g.shadowBlur = 0;
+  return true;
 }

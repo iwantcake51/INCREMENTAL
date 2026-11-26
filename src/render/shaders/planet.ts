@@ -349,6 +349,14 @@ void main(){
       spec = water;
       col = mapCol * (1.0 + fine * 0.35 * close * land);
       h = land * (1.0 - ice) * (fine * 0.02 * close + (bright - 0.15) * 0.01 * (1.0 - close));
+      // Ocean waves: drifting swell plus chop, only as fine as the pixels allow. They break the sun's glint into glitter.
+      float waveOct = clamp(log2(0.5 / max(px * 1800.0, 1e-7)), 0.0, 4.0);
+      if (waveOct > 0.0){
+        vec3 wp = n * 1800.0 + vec3(uTime * 0.6, 0.0, uTime * 0.35);
+        float swell = fbm(wp, waveOct);
+        float chop = fbm(wp * 3.1 - vec3(uTime * 0.9), max(waveOct - 1.0, 0.0));
+        h += water * (1.0 - ice) * (swell * 0.0016 + chop * 0.0006) * smoothstep(0.0, 1.0, waveOct);
+      }
       cityMaskLand = land;
     #elif defined(SURF_GAS) || defined(SURF_ICE)
       col = mapCol * (1.0 + fine * 0.08 * close);
@@ -464,7 +472,7 @@ void main(){
 
   // ---- Physically based lighting (GGX microfacets, Schlick Fresnel, energy-conserving diffuse) ----
   float ndlGeo = dot(Ng, L);
-  float term = smoothstep(-0.06, 0.14, ndlGeo);
+  float term = smoothstep(-0.1, 0.25, ndlGeo);   // soft day/night boundary
   float NdL = max(dot(N, L), 0.0);
   float NdV = max(dot(N, V), 1e-3);
   vec3 Hh = normalize(L + V);

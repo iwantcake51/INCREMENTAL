@@ -22,7 +22,7 @@ function PowerCard({ p }: { p: Power }) {
   const [a, setA] = useState<number | string>(p.target === "colonySite" ? COLONY_SITES.find(s => w.civ.canFound(s)) ?? "io" : p.target === "terraform" ? "mars" : p.target === "body" ? "moon" : 0);
   const [b, setB] = useState<number>(1);
   const why = god.availability(p, w.year);
-  const locked = god.rank < p.rank;
+  const locked = false;
   // For "war" targets, fall back to the first war if the chosen one has ended.
   const target = p.target === "war" ? (w.civ.wars.some(x => x.id === a) ? a : w.civ.wars[0]?.id) : a;
   const cast = () => { if (!c.usePower(p.id, target, b)) setOpen(false); };
@@ -36,7 +36,7 @@ function PowerCard({ p }: { p: Power }) {
           <span>{p.desc}</span>
           {why && <em>{why}</em>}
         </span>
-        <span class="power-cost">✦ {god.costOf(p)}</span>
+        <span class="power-cost">{needsTarget ? "Choose" : "Use"}</span>
       </button>
       {open && !locked && (
         <div class="power-form">
@@ -55,6 +55,17 @@ function PowerCard({ p }: { p: Power }) {
             </select>
             <span>for</span><FacSelect value={b} onChange={setB} />
           </>}
+          {(p.target === "colonyFaction" || p.target === "colony") && (() => {
+            const cols = w.civ.activeColonies();
+            const cur = cols.some(col => col.id === a) ? (a as string) : cols[0]?.id;
+            if (cur !== a && cur) queueMicrotask(() => setA(cur));
+            return cols.length ? <>
+              <select value={cur} onChange={e => setA((e.target as HTMLSelectElement).value)}>
+                {cols.map(col => <option key={col.id} value={col.id}>{col.name} ({FACTIONS[col.owner].short})</option>)}
+              </select>
+              {p.target === "colonyFaction" && <><span>{p.id === "attack" ? "attacked by" : "to"}</span><FacSelect value={b} onChange={setB} /></>}
+            </> : <span class="muted">No colonies yet.</span>;
+          })()}
           {p.target === "body" && (
             <select value={a as string} onChange={e => setA((e.target as HTMLSelectElement).value)}>
               {w.bodies.list.filter(b => b.kind !== "sun").map(b => <option key={b.id} value={b.id}>{b.name}{w.civ.colonies.some(col => col.active && col.body === b.id) ? " (settled)" : ""}</option>)}
@@ -65,7 +76,7 @@ function PowerCard({ p }: { p: Power }) {
               {TERRAFORMABLE.map(s => <option key={s} value={s} disabled={w.god.terraformLevel(s, w.year) > 0}>{cap(s)}</option>)}
             </select>
           )}
-          <button class="btn primary" onClick={cast} disabled={!!why}>Use · ✦ {god.costOf(p)}</button>
+          <button class="btn primary" onClick={cast} disabled={!!why}>Use</button>
         </div>
       )}
     </div>
@@ -74,7 +85,7 @@ function PowerCard({ p }: { p: Power }) {
 
 export function GodPanel() {
   tick.value;
-  const w = ctl().world, god = w.god;
+  const c = ctl(), w = c.world, god = w.god;
   const r = god.rank, next = RANKS[r + 1];
   const toNext = next ? (god.earned - RANKS[r].at) / (next.at - RANKS[r].at) : 1;
   return (
@@ -91,7 +102,18 @@ export function GodPanel() {
         <Bar value={toNext} color="linear-gradient(90deg,#d9a64a,#f3cf82)" />
         <span class="muted">{next ? `${Math.floor(god.earned)} / ${next.at} earned · next: ${next.name}` : "Highest rank reached"}</span>
       </div>
-      <p class="hint">You earn Influence over time: more colonies and peaceful years earn faster, and goals pay bonuses. Spend it on powers below. Fast-forward to 2045 for colonies and 2060 for wars.</p>
+      <div class="meteor-box">
+        <div>
+          <b>Meteor mode</b>
+          <span class="muted">Click anywhere on any world to drop a meteor right there. Press M to toggle.</span>
+        </div>
+        <div class="seg">
+          {([["small", "Pebble"], ["large", "Asteroid"], ["huge", "Extinction"]] as const).map(([k, label]) => (
+            <button key={k} class={c.engine.meteorMode === k ? "on" : ""} onClick={() => c.toggleMeteors(c.engine.meteorMode === k ? undefined : k)}>{label}</button>
+          ))}
+        </div>
+      </div>
+      <p class="hint">Every power is free. Influence and ranks track how far your world has come. Faction powers work once colonies exist (2030s–40s) and war powers once warships do (~2060).</p>
 
       <Section title="Powers">
         <div class="powers">{POWERS.map(p => <PowerCard key={p.id} p={p} />)}</div>

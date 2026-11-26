@@ -56,6 +56,8 @@ export class Engine {
   private down: { x: number; y: number; t: number } | null = null;
   selected = "earth";
   fps = 60;
+  /** God mode: when set, clicking a world drops a meteor of this size where you clicked. */
+  meteorMode: null | "small" | "large" | "huge" = null;
   mapsReady = false;
 
   constructor(private canvas: HTMLCanvasElement, labelRoot: HTMLElement, private world: World, private hooks: EngineHooks) {
@@ -239,6 +241,29 @@ export class Engine {
     }
   }
 
+  /** Meteor mode: find the world under the cursor and send a rock at exactly that spot, coming from your viewpoint. */
+  private fireMeteor(x: number, y: number) {
+    const ndc = new Vector3((x / this.w) * 2 - 1, -(y / this.h) * 2 + 1, 0.5);
+    const origin = this.camera.position.clone();
+    const dir = ndc.unproject(this.camera).sub(origin).normalize();
+    let best: { id: string; t: number } | null = null;
+    for (const b of this.world.bodies.list) {
+      if (b.kind === "sun") continue;
+      const oc = origin.clone().sub(b.pos);
+      const bb = oc.dot(dir), c = oc.lengthSq() - b.radius * b.radius, disc = bb * bb - c;
+      if (disc < 0) continue;
+      const t = -bb - Math.sqrt(disc);
+      if (t > 0 && (!best || t < best.t)) best = { id: b.id, t };
+    }
+    if (!best) return;
+    const b = this.world.bodies.get(best.id)!;
+    const hitPoint = origin.clone().addScaledVector(dir, best.t);
+    const local = hitPoint.clone().sub(b.pos).normalize().applyQuaternion(b.quat!.clone().invert());
+    const from = origin.clone().sub(hitPoint).normalize();
+    const size = this.meteorMode!;
+    this.world.impacts.launch(b.id, size === "small" ? "small" : size, "Meteor", [local.x, local.y, local.z], [from.x, from.y, from.z], size === "small" ? 1.1 : 1.6);
+  }
+
   /** Nearest clickable thing to a screen point. */
   pick(x: number, y: number): { id: string; name: string } | null {
     const cands: { id: string; name: string; pos: Vector3; r: number }[] = this.world.bodies.list.map((b: Body) => ({ id: b.id, name: b.name, pos: b.pos, r: b.radius }));
@@ -266,6 +291,11 @@ export class Engine {
     el.addEventListener("pointerup", e => {
       if (!this.down) return;
       const moved = Math.hypot(e.offsetX - this.down.x, e.offsetY - this.down.y);
+      if (moved < 5 && performance.now() - this.down.t < 500 && this.meteorMode) {
+        this.fireMeteor(e.offsetX, e.offsetY);
+        this.down = null;
+        return;
+      }
       if (moved < 5 && performance.now() - this.down.t < 500) {
         const hit = this.pick(e.offsetX, e.offsetY);
         if (hit) this.hooks.onSelect(hit.id);
@@ -274,6 +304,7 @@ export class Engine {
     });
     el.addEventListener("pointermove", e => {
       if (this.down) return;
+      if (this.meteorMode) { el.style.cursor = "crosshair"; this.hooks.onHover(null); return; }
       const hit = this.pick(e.offsetX, e.offsetY);
       el.style.cursor = hit ? "pointer" : "grab";
       this.hooks.onHover(hit ? { ...hit, x: e.offsetX, y: e.offsetY } : null);
