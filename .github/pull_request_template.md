@@ -4,10 +4,11 @@
 
 ## How I tested it
 
-- [ ] Opened `index.html` in a browser with no console errors
+- [ ] `npm run typecheck` and `npm test` pass
+- [ ] Opened it in a browser with no console errors
 - [ ] Checked it at phone width
 - [ ] Real facts have a source (link below), and anything invented is labeled as fiction
 
 ## Sources
 
-<!-- Links for any new numbers or facts. -->
+<!-- Links for any new numbers, facts or textures. -->
