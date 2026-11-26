@@ -1,0 +1,1210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Brass Orrery</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Manrope:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen instrument — live sky canvas on the left, brass control console on the right; stacks on phones. */
+:root {
+  --void: #080b16;
+  --panel: #10152a;
+  --panel-2: #161c36;
+  --line: #262e52;
+  --ink: #e9e4d6;
+  --ink-dim: #8f93ad;
+  --brass: #d9a64a;
+  --brass-hi: #f3cf82;
+  --sky: #6fa8ff;
+  --danger: #ff5a3c;
+  --life: #7fe0a0;
+  --f-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--void); color: var(--ink);
+  font-family: var(--f-body); font-size: 14px;
+  overflow: hidden;
+}
+.app { height: 100%; display: grid; grid-template-columns: 1fr 360px; }
+.stage { position: relative; min-width: 0; min-height: 0; }
+canvas#sky { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.stage-head {
+  position: absolute; top: 18px; left: max(20px, env(safe-area-inset-left, 0px));
+  pointer-events: none;
+}
+.eyebrow { font-family: var(--f-mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--brass); }
+h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(22px, 3vw, 34px); margin: 4px 0 0; letter-spacing: -.01em; text-wrap: balance; }
+.date-big { font-family: var(--f-mono); font-size: 13px; color: var(--ink-dim); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.tally {
+  display: inline-flex; gap: 8px; align-items: center; margin-top: 10px;
+  font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .06em;
+  color: var(--danger); border: 1px solid rgba(255,90,60,.45); background: rgba(255,90,60,.08);
+  border-radius: 999px; padding: 5px 11px; font-variant-numeric: tabular-nums;
+}
+.legend { position: absolute; bottom: 16px; left: max(20px, env(safe-area-inset-left, 0px)); right: 16px; font-family: var(--f-mono); font-size: 11px; color: var(--ink-dim); pointer-events: none; }
+
+.console {
+  background: linear-gradient(180deg, var(--panel), var(--void));
+  border-left: 1px solid var(--line);
+  padding-block: 20px; padding-left: 20px; padding-right: max(20px, env(safe-area-inset-right, 0px));
+  overflow-y: auto; display: flex; flex-direction: column; gap: 22px;
+}
+.group { display: flex; flex-direction: column; gap: 10px; }
+.label { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-dim); }
+
+.transport { display: flex; gap: 8px; align-items: center; }
+.btn {
+  font: 600 13px var(--f-body); color: var(--ink);
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 14px; cursor: pointer; transition: border-color .15s, background .15s, color .15s;
+}
+.btn:hover { border-color: var(--brass); }
+.btn:focus-visible, .seg button:focus-visible, .planet:focus-visible, input:focus-visible { outline: 2px solid var(--brass-hi); outline-offset: 2px; }
+.btn.play {
+  width: 46px; height: 46px; border-radius: 50%; padding: 0; display: grid; place-items: center; flex: none;
+  background: radial-gradient(circle at 35% 30%, var(--brass-hi), var(--brass) 60%, #8a6420);
+  border: none; color: var(--void); box-shadow: 0 0 0 4px rgba(217,166,74,.15), 0 6px 20px rgba(217,166,74,.25);
+}
+.btn.play svg { width: 18px; height: 18px; fill: currentColor; }
+
+.btn.boom {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(180deg, #3a1610, #24100c); border-color: rgba(255,90,60,.55); color: #ffd2c6;
+  font-family: var(--f-display); font-weight: 600; letter-spacing: .04em; padding: 12px 14px;
+}
+.btn.boom:hover { border-color: var(--danger); background: linear-gradient(180deg, #4a1a12, #2c120d); }
+.btn.boom.armed { background: var(--danger); color: #1a0703; border-color: var(--danger); animation: pulse .6s infinite alternate; }
+.btn.boom.restore { background: linear-gradient(180deg, #12301f, #0c2016); border-color: rgba(127,224,160,.5); color: #c9f5d8; }
+.btn.boom.restore:hover { border-color: var(--life); }
+@keyframes pulse { to { box-shadow: 0 0 0 6px rgba(255,90,60,.25); } }
+
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { font: 500 12px var(--f-mono); color: var(--ink-dim); background: none; border: 0; border-radius: 7px; padding: 7px 0; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--brass); color: var(--void); }
+.seg button:not([aria-pressed="true"]):hover { color: var(--ink); }
+
+input[type="date"] {
+  font: 500 13px var(--f-mono); color: var(--ink); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; flex: 1; min-width: 0;
+}
+.row { display: flex; gap: 8px; }
+
+.toggles { display: flex; flex-direction: column; gap: 8px; }
+.toggle { display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: 500; }
+.toggle input { appearance: none; width: 36px; height: 20px; border-radius: 20px; background: var(--line); position: relative; cursor: pointer; transition: background .2s; flex: none; }
+.toggle input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink); transition: transform .2s; }
+.toggle input:checked { background: var(--brass); }
+.toggle input:checked::after { transform: translateX(16px); background: var(--void); }
+
+.planets { display: flex; flex-direction: column; gap: 2px; }
+.planet {
+  display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: center;
+  padding: 8px 10px; border-radius: 9px; cursor: pointer; border: 1px solid transparent; background: none; color: var(--ink); font: inherit; text-align: left;
+}
+.planet:hover { background: var(--panel-2); }
+.planet[aria-selected="true"] { background: var(--panel-2); border-color: var(--brass); }
+.planet.gone .name { text-decoration: line-through; color: var(--ink-dim); }
+.planet.gone .dot { background: transparent !important; box-shadow: none !important; border: 1px dashed var(--danger); }
+.dot { width: 10px; height: 10px; border-radius: 50%; box-sizing: border-box; }
+.planet .name { font-weight: 600; }
+.planet .val { font-family: var(--f-mono); font-size: 12px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.planet.gone .val { color: var(--danger); }
+
+.card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.detail { display: grid; grid-template-columns: 1fr 76px; gap: 12px 14px; }
+.detail h2 { font-family: var(--f-display); font-weight: 600; font-size: 20px; margin: 0; grid-column: 1; }
+.detail .ring { grid-column: 2; grid-row: 1 / span 2; }
+.stats { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.stat .k { font-family: var(--f-mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); }
+.stat .v { font-family: var(--f-mono); font-size: 15px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.sub { grid-column: 1; color: var(--ink-dim); font-size: 12.5px; margin: 0; }
+.detail .actions { grid-column: 1 / -1; }
+
+.life { display: flex; flex-direction: column; gap: 12px; }
+#vig { display: block; width: 100%; height: 170px; border-radius: 10px; background: #050710; }
+.life-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.pill { font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; border: 1px solid currentColor; }
+.pill.yes { color: var(--life); }
+.pill.maybe { color: var(--brass-hi); }
+.pill.no { color: var(--ink-dim); }
+.pill.dead { color: var(--danger); }
+.count { font-family: var(--f-mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.life p { margin: 0; line-height: 1.55; color: var(--ink); font-size: 13.5px; }
+.bars { display: flex; flex-direction: column; gap: 7px; }
+.bar { display: grid; grid-template-columns: 92px 1fr; gap: 10px; align-items: center; font-size: 12px; color: var(--ink-dim); }
+.bar .track { height: 6px; border-radius: 6px; background: var(--line); overflow: hidden; }
+.bar .fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--brass), var(--life)); transition: width .5s ease; }
+.bars-note { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-dim); }
+
+.facts { display: flex; flex-direction: column; gap: 12px; }
+.fact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin: 0; }
+.fact-grid div { min-width: 0; }
+.fact-grid dt { font-family: var(--f-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); }
+.fact-grid dd { margin: 2px 0 0; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fact-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.fact-list li { position: relative; padding-left: 16px; font-size: 13.5px; line-height: 1.5; }
+.fact-list li::before { content: ""; position: absolute; left: 2px; top: .6em; width: 6px; height: 6px; border-radius: 50%; background: var(--brass); }
+.era-chip {
+  display: inline-flex; gap: 8px; align-items: center; margin-top: 10px; margin-right: 6px;
+  font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .06em; color: var(--brass-hi);
+  border: 1px solid rgba(217,166,74,.45); background: rgba(217,166,74,.08); border-radius: 999px; padding: 5px 11px;
+}
+.tech { display: flex; flex-direction: column; gap: 12px; }
+.era-name { font-family: var(--f-display); font-weight: 600; font-size: 18px; margin: 0; text-wrap: balance; }
+.era-desc { margin: 0; color: var(--ink); font-size: 13.5px; line-height: 1.55; }
+.next { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--ink-dim); }
+.next .track { height: 6px; border-radius: 6px; background: var(--line); overflow: hidden; }
+.next .fill { height: 100%; background: linear-gradient(90deg, var(--brass), var(--brass-hi)); }
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 240px; overflow-y: auto; }
+.timeline li { display: grid; grid-template-columns: 44px 12px 1fr; gap: 8px; align-items: start; padding: 5px 0; font-size: 12.5px; color: var(--ink-dim); }
+.timeline .yr { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.timeline .tick { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--line); margin-top: 4px; box-sizing: border-box; }
+.timeline li.done { color: var(--ink); }
+.timeline li.done .tick { background: var(--brass); border-color: var(--brass); }
+.timeline li.now .tick { border-color: var(--brass-hi); box-shadow: 0 0 0 3px rgba(243,207,130,.2); }
+.tag { font-family: var(--f-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
+.war { display: flex; flex-direction: column; gap: 12px; }
+.factions { display: flex; flex-wrap: wrap; gap: 6px; }
+.fac { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px 4px 8px; font-variant-numeric: tabular-nums; }
+.fac i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.fac.out { opacity: .4; text-decoration: line-through; }
+.weapon { font-family: var(--f-mono); font-size: 12px; color: var(--brass-hi); }
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; max-height: 150px; overflow-y: auto; }
+.log li { display: grid; grid-template-columns: 40px 1fr; gap: 8px; color: var(--ink); }
+.log li span:first-child { font-family: var(--f-mono); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.note { margin: 0; font-size: 12.5px; color: var(--ink-dim); line-height: 1.5; }
+
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  .app { grid-template-columns: 1fr; grid-template-rows: 62vh auto; height: auto; }
+  .console { border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="app">
+  <section class="stage">
+    <canvas id="sky" aria-label="Animated orrery of the eight planets"></canvas>
+    <div class="stage-head">
+      <div class="eyebrow">Heliocentric · ecliptic plane</div>
+      <h1>Brass Orrery</h1>
+      <div class="date-big" id="dateBig">—</div>
+      <div><span class="era-chip" id="eraChip"></span><span class="tally" id="tally" hidden></span></div>
+    </div>
+    <div class="legend" id="legend">Distances compressed (√AU) · sizes not to scale · drag to rotate · click a planet · double-click to detonate</div>
+  </section>
+
+  <aside class="console">
+    <div class="group">
+      <div class="label">Time</div>
+      <div class="transport">
+        <button class="btn play" id="play" aria-label="Pause"><svg viewBox="0 0 24 24" id="playIcon"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg></button>
+        <div class="seg" id="speed" role="group" aria-label="Playback speed" style="flex:1">
+          <button data-s="1">1d/s</button>
+          <button data-s="30" aria-pressed="true">1mo/s</button>
+          <button data-s="365.25">1y/s</button>
+          <button data-s="3652.5">10y/s</button>
+        </div>
+      </div>
+      <div class="row">
+        <input type="date" id="date" aria-label="Jump to date" min="1950-01-01" max="2600-12-31">
+        <button class="btn" id="today">Today</button>
+      </div>
+    </div>
+
+    <div class="card detail" id="detail" aria-live="polite">
+      <h2 id="dName">Earth</h2>
+      <svg class="ring" viewBox="0 0 76 76" width="76" height="76" aria-hidden="true">
+        <circle cx="38" cy="38" r="30" fill="none" stroke="#262e52" stroke-width="6"/>
+        <circle id="ringArc" cx="38" cy="38" r="30" fill="none" stroke="#6fa8ff" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 999" transform="rotate(-90 38 38)"/>
+        <text id="ringText" x="38" y="42" text-anchor="middle" fill="#e9e4d6" font-family="IBM Plex Mono, monospace" font-size="13">0°</text>
+      </svg>
+      <p class="sub" id="dSub"></p>
+      <div class="stats">
+        <div class="stat"><div class="k">From Sun</div><div class="v" id="sSun"></div></div>
+        <div class="stat"><div class="k">From Earth</div><div class="v" id="sEarth"></div></div>
+        <div class="stat"><div class="k">Sunlight takes</div><div class="v" id="sLight"></div></div>
+        <div class="stat"><div class="k">Signal to Earth</div><div class="v" id="sSignal"></div></div>
+      </div>
+      <div class="actions"><button class="btn boom" id="boom">Detonate</button></div>
+    </div>
+
+    <div class="card facts">
+      <div class="label" id="factsLabel">Facts</div>
+      <dl class="fact-grid" id="factGrid"></dl>
+      <ul class="fact-list" id="factList"></ul>
+      <div class="bars-note">Source: NASA planetary fact sheets</div>
+    </div>
+
+    <div class="card life" id="life">
+      <div class="label" id="lifeLabel">Life on Earth</div>
+      <canvas id="vig" aria-label="Animated scene of life on the selected planet"></canvas>
+      <div class="life-head"><span class="pill" id="lifePill"></span><span class="count" id="lifeCount"></span></div>
+      <p id="lifeText"></p>
+      <div class="bars" id="bars"></div>
+      <div class="bars-note" id="barsNote"></div>
+    </div>
+
+    <div class="card tech">
+      <div class="label" id="techLabel">Technology</div>
+      <h3 class="era-name" id="eraName"></h3>
+      <p class="era-desc" id="eraDesc"></p>
+      <div class="next">
+        <span id="nextText"></span>
+        <div class="track"><div class="fill" id="nextFill"></div></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="jumpNext" style="flex:1">Jump to next milestone</button>
+        <button class="btn" id="fastFwd" title="Play at 10 years per second">Fast-forward</button>
+      </div>
+      <ul class="timeline" id="timeline"></ul>
+    </div>
+
+    <div class="card war">
+      <div class="label">Space war</div>
+      <label class="toggle">Start the war <input type="checkbox" id="warOn"></label>
+      <label class="toggle">Allow planet-cracker weapons <input type="checkbox" id="crackers"></label>
+      <div class="weapon" id="weapon"></div>
+      <div class="factions" id="factions"></div>
+      <p class="note" id="warNote"></p>
+      <ul class="log" id="log"></ul>
+    </div>
+
+    <div class="group">
+      <div class="label">Planets</div>
+      <div class="planets" id="list" role="listbox" aria-label="Planets"></div>
+      <button class="btn" id="restoreAll" hidden>Rebuild the solar system</button>
+    </div>
+
+    <div class="group">
+      <div class="label">Display</div>
+      <div class="toggles">
+        <label class="toggle">True-scale distances <input type="checkbox" id="trueScale"></label>
+        <label class="toggle">Orbit trails <input type="checkbox" id="trails" checked></label>
+        <label class="toggle">Earth sightlines <input type="checkbox" id="lines"></label>
+        <label class="toggle">Explosion sound <input type="checkbox" id="sound" checked></label>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+// Keplerian elements at J2000 (NASA JPL approximate elements): a semi-major axis (AU), T period (days),
+// L0 mean longitude (deg), e eccentricity, w longitude of perihelion (deg). Drawn sizes are not to scale.
+const P = [
+  { n:"Mercury", a:0.387,  T:87.969,   L0:252.25, e:0.2056, w:77.46,  c:"#a9a39b", r:3.6 },
+  { n:"Venus",   a:0.723,  T:224.701,  L0:181.98, e:0.0068, w:131.53, c:"#e8cf9a", r:5.6 },
+  { n:"Earth",   a:1.000,  T:365.256,  L0:100.46, e:0.0167, w:102.94, c:"#4f8fe8", r:5.9 },
+  { n:"Mars",    a:1.524,  T:686.980,  L0:355.45, e:0.0934, w:336.04, c:"#c8643c", r:4.5 },
+  { n:"Jupiter", a:5.203,  T:4332.59,  L0:34.40,  e:0.0484, w:14.75,  c:"#d8b48a", r:12 },
+  { n:"Saturn",  a:9.537,  T:10759.2,  L0:49.94,  e:0.0539, w:92.43,  c:"#e3cf9b", r:10, ring:true },
+  { n:"Uranus",  a:19.19,  T:30688.5,  L0:313.23, e:0.0473, w:170.96, c:"#a8dfe3", r:7.6 },
+  { n:"Neptune", a:30.07,  T:60182.0,  L0:304.88, e:0.0086, w:44.97,  c:"#4a6fe0", r:7.4 },
+];
+// Real figures from NASA planetary fact sheets. Moon counts are confirmed moons as of 2025.
+const FACTS = [
+  { stats:[["Diameter","4,879 km"],["Mass","0.055 Earths"],["Gravity","3.7 m/s²"],["Day (sunrise to sunrise)","176 Earth days"],["Year","88 Earth days"],["Moons","0"],["Atmosphere","Almost none"],["Temperature","−173 to 427 °C"]],
+    list:["One sunrise-to-sunrise day on Mercury lasts 176 Earth days, twice as long as its year.",
+          "It is the smallest planet, only about 40% wider than Earth's Moon.",
+          "Its iron core fills about 85% of its radius, the largest share of any planet.",
+          "It is closest to the Sun but not the hottest planet. Venus is hotter."] },
+  { stats:[["Diameter","12,104 km"],["Mass","0.815 Earths"],["Gravity","8.87 m/s²"],["Rotation","243 Earth days (backwards)"],["Year","224.7 Earth days"],["Moons","0"],["Atmosphere","96.5% CO₂, 92× Earth's pressure"],["Temperature","464 °C"]],
+    list:["Venus spins backwards compared with most planets, so the Sun rises in the west.",
+          "It takes longer to spin once (243 days) than to orbit the Sun (225 days).",
+          "Its surface is hot enough to melt lead, making it the hottest planet.",
+          "After the Moon, it is the brightest natural object in the night sky."] },
+  { stats:[["Diameter","12,742 km"],["Mass","5.97 × 10²⁴ kg"],["Gravity","9.81 m/s²"],["Day","23 h 56 min"],["Year","365.25 days"],["Moons","1"],["Atmosphere","78% N₂, 21% O₂"],["Temperature","15 °C average"]],
+    list:["Earth is the only known world with liquid water on its surface, covering about 71% of it.",
+          "It is the densest planet in the solar system, at 5.51 g/cm³.",
+          "The Moon drifts about 3.8 cm farther from Earth every year.",
+          "Earth is closest to the Sun in early January, during northern winter."] },
+  { stats:[["Diameter","6,779 km"],["Mass","0.107 Earths"],["Gravity","3.71 m/s²"],["Day","24 h 37 min"],["Year","687 Earth days"],["Moons","2 (Phobos, Deimos)"],["Atmosphere","95% CO₂, under 1% of Earth's pressure"],["Temperature","−63 °C average"]],
+    list:["Olympus Mons is about 22 km tall, roughly two and a half times the height of Everest.",
+          "The canyon Valles Marineris runs about 4,000 km, the width of the United States.",
+          "Its red color comes from iron oxide, which is rust, in the dust.",
+          "Sunsets on Mars glow blue, because fine dust scatters blue light toward the Sun."] },
+  { stats:[["Diameter","139,820 km"],["Mass","317.8 Earths"],["Gravity","24.79 m/s²"],["Day","9 h 56 min"],["Year","11.86 Earth years"],["Moons","95+"],["Atmosphere","~90% hydrogen, ~10% helium"],["Temperature","−110 °C at cloud tops"]],
+    list:["Jupiter holds more than twice the mass of all the other planets combined.",
+          "The Great Red Spot is a storm wider than Earth, watched for at least 190 years.",
+          "It spins faster than any other planet, so a day lasts under 10 hours.",
+          "Its moon Ganymede is the largest moon in the solar system, bigger than Mercury."] },
+  { stats:[["Diameter","116,460 km"],["Mass","95.2 Earths"],["Gravity","10.44 m/s²"],["Day","10 h 33 min"],["Year","29.46 Earth years"],["Moons","274"],["Atmosphere","Hydrogen and helium"],["Temperature","−140 °C at cloud tops"]],
+    list:["Saturn's average density is lower than water's, at 0.69 g/cm³.",
+          "Its main rings span about 280,000 km but are mostly only about 10 m thick.",
+          "A six-sided jet stream circles its north pole.",
+          "Its moon Titan has a thicker atmosphere than Earth and lakes of liquid methane."] },
+  { stats:[["Diameter","50,724 km"],["Mass","14.5 Earths"],["Gravity","8.69 m/s²"],["Day","17 h 14 min (backwards)"],["Year","84 Earth years"],["Moons","28"],["Atmosphere","Hydrogen, helium, methane"],["Temperature","−195 °C at cloud tops"]],
+    list:["Uranus is tilted 98°, so it rolls around the Sun on its side.",
+          "Each pole gets about 42 years of sunlight followed by 42 years of darkness.",
+          "It has the coldest atmosphere of any planet, reaching −224 °C.",
+          "William Herschel found it in 1781, the first planet discovered with a telescope."] },
+  { stats:[["Diameter","49,244 km"],["Mass","17.1 Earths"],["Gravity","11.15 m/s²"],["Day","16 h 6 min"],["Year","164.8 Earth years"],["Moons","16"],["Atmosphere","Hydrogen, helium, methane"],["Temperature","−200 °C at cloud tops"]],
+    list:["Neptune was found by math first: astronomers predicted it from Uranus's wobble and saw it in 1846.",
+          "Its winds reach about 2,100 km/h, the fastest measured in the solar system.",
+          "It finished its first full orbit since its discovery in 2011.",
+          "Its largest moon, Triton, orbits backwards and is slowly spiraling inward."] },
+];
+// What we know about life on (or around) each world. Bars score the best local habitat, 0–100.
+const LIFE = [
+  { kind:"mercury", pill:["no","No known life"], count:"0 known species", species:0,
+    text:"Days reach 427 °C and nights fall to −173 °C, with almost no atmosphere to hold heat or block radiation. Oddly, MESSENGER found water ice hiding in permanently shadowed polar craters.",
+    bars:[5,10,0], where:"Surface" },
+  { kind:"venus", pill:["maybe","Debated"], count:"0 confirmed", species:0,
+    text:"The surface is 464 °C under 92 bar of CO₂. About 50 km up, the clouds sit near room temperature, and a disputed 2020 phosphine detection put them on the shortlist for airborne microbes.",
+    bars:[30,5,35], where:"Cloud layer, ~50 km up" },
+  { kind:"earth", pill:["yes","Teeming"], count:"~8.7 million species", species:8.7e6,
+    text:"The only world where life is confirmed: about 8.7 million species of plants, animals and fungi by one widely cited estimate, plus microbes in uncounted numbers, from deep-sea vents to the upper atmosphere.",
+    bars:[90,100,100], where:"Everywhere" },
+  { kind:"mars", pill:["maybe","Possible past life"], count:"0 confirmed", species:0,
+    text:"Dried river deltas show Mars once had liquid water. In 2024 Perseverance found speckled “leopard spot” patterns in a rock named Cheyava Falls that could be traces of ancient microbes, or of plain chemistry.",
+    bars:[25,30,10], where:"Below the surface" },
+  { kind:"europa", pill:["maybe","Ocean moon"], count:"0 confirmed", species:0,
+    text:"Jupiter has no surface, but its moon Europa hides a salty ocean under the ice holding about twice the water of Earth's oceans. NASA's Europa Clipper, launched in 2024, is on its way to look.",
+    bars:[40,80,5], where:"Europa's ocean" },
+  { kind:"enceladus", pill:["maybe","Ocean moon"], count:"0 confirmed", species:0,
+    text:"Saturn's moon Enceladus sprays its ocean into space through cracks near its south pole. Cassini flew through the plumes and tasted water, salts, organic molecules and phosphates. Titan has lakes of liquid methane.",
+    bars:[40,75,5], where:"Enceladus's ocean" },
+  { kind:"uranus", pill:["no","None known"], count:"0 known species", species:0,
+    text:"An ice giant knocked on its side, with cloud tops near −195 °C. Its larger moons, such as Ariel and Titania, may hide thin oceans under their crusts, but no spacecraft has gone back to check since 1986.",
+    bars:[5,20,5], where:"Moon interiors (unknown)" },
+  { kind:"neptune", pill:["no","None known"], count:"0 known species", species:0,
+    text:"Cloud tops near −200 °C and the fastest winds measured in the solar system, over 2,000 km/h. Its captured moon Triton erupts dark geysers of nitrogen gas from beneath a frozen surface.",
+    bars:[3,15,5], where:"Triton's interior (unknown)" },
+];
+const BAR_NAMES = ["Temperature", "Liquid water", "Atmosphere"];
+
+const J2000 = Date.UTC(2000,0,1,12);
+const DAY = 864e5;
+const LIGHT_MIN_PER_AU = 8.3167;
+
+const $ = id => document.getElementById(id);
+const cv = $("sky"), ctx = cv.getContext("2d");
+const vc = $("vig"), vx = vc.getContext("2d");
+let W=0, H=0, VW=0, VH=0, dpr=1, stars=[];
+let day = (Date.now() - J2000) / DAY;
+let speed = 30, playing = true, selected = 2, hover = -1;
+let tilt = 0.55, spin = 0, drag = null;
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (reduced) playing = false;
+
+// Destruction state
+const destroyed = P.map(() => null);   // null or { t0, frags[] }
+let sparks = [], waves = [], flash = 0, shake = 0, lost = 0;
+
+function resize(){
+  dpr = Math.min(devicePixelRatio || 1, 2);
+  const b = cv.getBoundingClientRect(); W = b.width; H = b.height;
+  cv.width = W*dpr; cv.height = H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  stars = Array.from({length: Math.round(W*H/2200)}, () => ({x:Math.random()*W, y:Math.random()*H, s:Math.random()*1.2+.2, p:Math.random()*6.28}));
+  const v = vc.getBoundingClientRect(); VW = v.width; VH = v.height;
+  vc.width = VW*dpr; vc.height = VH*dpr; vx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener("resize", resize);
+
+// Solve Kepler's equation for an elliptical orbit; returns heliocentric distance r (AU) and longitude th (rad).
+function kepler(p, d){
+  const e = p.e || 0, w = (p.w || 0)*Math.PI/180;
+  const M = ((p.L0 + 360*d/p.T)*Math.PI/180) - w;
+  let E = M; for (let k=0;k<6;k++) E -= (E - e*Math.sin(E) - M)/(1 - e*Math.cos(E));
+  const x = p.a*(Math.cos(E) - e), y = p.a*Math.sqrt(1-e*e)*Math.sin(E);
+  return { r: Math.hypot(x,y), th: Math.atan2(y,x) + w };
+}
+const ang = (p,d) => kepler(p,d).th;
+const helio = (p,d) => { const k = kepler(p,d); return [k.r*Math.cos(k.th), k.r*Math.sin(k.th)]; };
+const scr = (p,d) => { const k = kepler(p,d); return polar(scaleR(k.r), k.th); };
+function orbitPath(p, d0, d1, steps){
+  ctx.beginPath();
+  for (let k=0;k<=steps;k++){ const [x,y] = scr(p, d0 + (d1-d0)*k/steps); k ? ctx.lineTo(x,y) : ctx.moveTo(x,y); }
+}
+function scaleR(a){
+  const max = Math.min(W,H)*0.46;
+  return $("trueScale").checked ? a/30.07*max : Math.sqrt(a/30.07)*max;
+}
+function polar(R, th){ return [W/2 + R*Math.cos(th+spin), H/2 + R*Math.sin(th+spin)*tilt]; }
+
+/* ---------- Explosions ---------- */
+function detonate(i){
+  if (destroyed[i]) return;
+  const p = P[i], s = screen[i] || [W/2, H/2, p.r];
+  const n = 180 + p.r*14;
+  destroyed[i] = { t0: performance.now(), frags: Array.from({length: Math.round(60 + p.r*12)}, () => ({
+    off: (Math.random()-.5)*.04, rate: (Math.random()-.5)*2, dr: (Math.random()-.5)*2, s: Math.random()*1.8+.5, hot: Math.random()
+  }))};
+  const palette = ["#ffffff", "#fff1c4", "#f3cf82", "#ff8a4a", "#ff5a3c", p.c];
+  for (let k=0;k<n;k++){
+    const a = Math.random()*Math.PI*2, v = (Math.random()**.6)*(120 + p.r*22);
+    sparks.push({ x:s[0], y:s[1], vx:Math.cos(a)*v, vy:Math.sin(a)*v, life:0, max:.8+Math.random()*1.8, c:palette[k%palette.length], s:Math.random()*2.2+.6 });
+  }
+  waves.push({ x:s[0], y:s[1], t:0, max: 1.4, R: 40 + p.r*9, c:p.c });
+  waves.push({ x:s[0], y:s[1], t:-.12, max: 1.0, R: 22 + p.r*5, c:"#fff1c4" });
+  flash = i===2 ? 1 : .55; shake = 6 + p.r*1.2;
+  lost += LIFE[i].species;
+  boomSound(p.r);
+  refresh();
+}
+function restore(i){ destroyed[i] = null; lost -= LIFE[i].species; refresh(); }
+
+let actx = null;
+function boomSound(size){
+  if (!$("sound").checked) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const now = actx.currentTime, len = Math.floor(actx.sampleRate * 2.6);
+    const buf = actx.createBuffer(1, len, actx.sampleRate), d = buf.getChannelData(0);
+    for (let k=0;k<len;k++) d[k] = (Math.random()*2-1) * Math.pow(1-k/len, 3.2);
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const lp = actx.createBiquadFilter(); lp.type = "lowpass";
+    lp.frequency.setValueAtTime(1800, now); lp.frequency.exponentialRampToValueAtTime(50, now+2.2);
+    const g = actx.createGain(); g.gain.value = .5 + Math.min(.4, size/25);
+    src.connect(lp).connect(g).connect(actx.destination); src.start(now);
+    const o = actx.createOscillator(), og = actx.createGain();
+    o.frequency.setValueAtTime(90, now); o.frequency.exponentialRampToValueAtTime(28, now+1.1);
+    og.gain.setValueAtTime(.7, now); og.gain.exponentialRampToValueAtTime(.001, now+1.3);
+    o.connect(og).connect(actx.destination); o.start(now); o.stop(now+1.4);
+  } catch (e) {}
+}
+
+/* ---------- Planet rendering: surface detail plus a day/night terminator facing the Sun ---------- */
+function drawRing(x, y, r, front){
+  const rot = -.2, ry = Math.max(.12, tilt*.45), a0 = front ? 0 : Math.PI, a1 = front ? Math.PI : Math.PI*2;
+  const bands = [[1.3,.7,"rgba(150,130,100,.35)"],[1.65,2.6,"rgba(226,205,160,.85)"],[1.9,.6,"rgba(10,10,20,.0)"],[2.05,1.8,"rgba(210,190,150,.7)"],[2.25,.8,"rgba(190,170,130,.45)"]];
+  bands.forEach(([k, lw, c]) => { ctx.beginPath(); ctx.ellipse(x, y, r*k, r*k*ry, rot, a0, a1); ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.stroke(); });
+}
+function drawPlanet(p, i, x, y, t){
+  const r = p.r, sx = W/2 - x, sy = H/2 - y, sl = Math.hypot(sx, sy) || 1, ux = sx/sl, uy = sy/sl;
+  const glow = ctx.createRadialGradient(x, y, r*.8, x, y, r*2.4);
+  glow.addColorStop(0, p.c + "38"); glow.addColorStop(1, p.c + "00");
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y, r*2.4, 0, Math.PI*2); ctx.fill();
+  if (p.ring) drawRing(x, y, r, false);
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.clip();
+  ctx.fillStyle = p.c; ctx.fillRect(x-r, y-r, r*2, r*2);
+  const rot = (t/1000) * (p.n==="Jupiter"||p.n==="Saturn" ? .25 : .08);
+  const blob = (ox, oy, rx, ry, c) => { ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(x+ox, y+oy, rx, ry, 0, 0, Math.PI*2); ctx.fill(); };
+  const wrap = (k) => ((rot + k) % 1) * r*3 - r*1.5;
+  switch (p.n){
+    case "Mercury": [[.2,-.3,.25],[-.4,.2,.18],[.1,.45,.2],[-.1,-.1,.12]].forEach(([a,b,s]) => blob(a*r, b*r, s*r, s*r, "rgba(60,58,55,.45)")); break;
+    case "Venus": blob(0, -r*.3, r*1.2, r*.25, "rgba(255,244,210,.4)"); blob(0, r*.35, r*1.1, r*.2, "rgba(190,150,90,.35)"); break;
+    case "Earth":
+      ctx.fillStyle = "#2a62c4"; ctx.fillRect(x-r, y-r, r*2, r*2);
+      [[0,-.1,.5,.45,"#3f8a4a"],[.45,.2,.3,.5,"#5f8f3e"],[.85,-.25,.35,.3,"#9c8a5a"]].forEach(([k,oy,rx,ry,c]) => blob(wrap(k), oy*r, rx*r, ry*r, c));
+      [[.15,-.45],[.6,.35],[.9,0]].forEach(([k,oy]) => blob(wrap(k+.1), oy*r, r*.6, r*.12, "rgba(255,255,255,.6)"));
+      blob(0, -r, r*.7, r*.3, "#f4f8ff"); blob(0, r, r*.6, r*.25, "#f4f8ff"); break;
+    case "Mars":
+      [[0,.1,.5,.25],[.5,-.2,.3,.2]].forEach(([k,oy,rx,ry]) => blob(wrap(k), oy*r, rx*r, ry*r, "rgba(110,45,25,.6)"));
+      blob(0, -r*.95, r*.55, r*.25, "#f6f1ea"); break;
+    case "Jupiter": {
+      const cols = ["#efe0c4","#b98a5c","#f2e6cf","#a8713f","#e8d2ad","#c49a6c","#f0e2c8","#9e6a3c","#e6cfa8"];
+      cols.forEach((c,k) => { ctx.fillStyle = c; ctx.beginPath();
+        const y0 = y - r + k*r*2/cols.length;
+        ctx.moveTo(x-r, y0); for (let xx=-r; xx<=r; xx+=2) ctx.lineTo(x+xx, y0 + Math.sin(xx*.6 + t/700 + k)*.5);
+        ctx.lineTo(x+r, y0 + r*2/cols.length + 1); ctx.lineTo(x-r, y0 + r*2/cols.length + 1); ctx.fill(); });
+      blob(wrap(.3), r*.38, r*.32, r*.17, "#c4553a"); break; }
+    case "Saturn": {
+      const cols = ["#f1e3bd","#d9c08c","#ecdcb2","#cdb27c","#e8d6a6","#d4ba86"];
+      cols.forEach((c,k) => { ctx.fillStyle = c; ctx.fillRect(x-r, y - r + k*r*2/cols.length, r*2, r*2/cols.length + 1); }); break; }
+    case "Uranus": blob(0, 0, r*1.2, r*.15, "rgba(255,255,255,.12)"); break;
+    case "Neptune": blob(wrap(.2), -r*.2, r*.3, r*.16, "#23336f"); blob(wrap(.35), r*.1, r*.35, r*.06, "rgba(255,255,255,.55)"); break;
+  }
+  const g = ctx.createLinearGradient(x + ux*r, y + uy*r, x - ux*r, y - uy*r);
+  g.addColorStop(0, "rgba(255,250,235,.22)"); g.addColorStop(.42, "rgba(0,0,0,0)"); g.addColorStop(.6, "rgba(4,6,14,.78)"); g.addColorStop(1, "rgba(4,6,14,.96)");
+  ctx.fillStyle = g; ctx.fillRect(x-r, y-r, r*2, r*2);
+  ctx.restore();
+  if (p.n==="Earth" || p.n==="Venus"){ ctx.beginPath(); ctx.arc(x, y, r+.6, Math.atan2(uy,ux)-1.4, Math.atan2(uy,ux)+1.4); ctx.strokeStyle = p.n==="Earth" ? "rgba(140,190,255,.6)" : "rgba(255,230,180,.5)"; ctx.lineWidth = 1; ctx.stroke(); }
+  if (p.ring) drawRing(x, y, r, true);
+}
+
+/* ---------- Main sky ---------- */
+const screen = [];
+let prevT = performance.now();
+function draw(t, dt){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle = "#080b16"; ctx.fillRect(0,0,W,H);
+  const g = ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*.7);
+  g.addColorStop(0,"rgba(60,70,140,.18)"); g.addColorStop(1,"rgba(8,11,22,0)");
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  for (const s of stars){ ctx.globalAlpha = .35 + .35*Math.sin(t/900 + s.p); ctx.fillStyle="#e9e4d6"; ctx.fillRect(s.x,s.y,s.s,s.s); }
+  ctx.globalAlpha = 1;
+
+  if (shake > .1){ ctx.translate((Math.random()-.5)*shake, (Math.random()-.5)*shake); shake *= Math.pow(.02, dt); }
+
+  // orbits + trails
+  P.forEach((p,i) => {
+    orbitPath(p, day, day + p.T, 160);
+    ctx.strokeStyle = i===selected ? "rgba(217,166,74,.6)" : "rgba(143,147,173,.16)";
+    ctx.lineWidth = i===selected ? 1.2 : 1; ctx.stroke();
+    if (i===selected){ // perihelion marker: the orbit's closest point to the Sun
+      const wd = ((p.w - p.L0)/360*p.T) % p.T, n = Math.floor((day - wd)/p.T);
+      const [qx,qy] = scr(p, wd + n*p.T);
+      ctx.fillStyle = "rgba(217,166,74,.85)"; ctx.beginPath(); ctx.arc(qx,qy,2,0,Math.PI*2); ctx.fill();
+      ctx.font = "400 9px 'IBM Plex Mono', monospace"; ctx.fillText("PERIHELION", qx+5, qy-4);
+    }
+    if ($("trails").checked && !destroyed[i]){
+      const span = Math.min(1.6, 2.2*Math.sqrt(1/p.a))/(Math.PI*2)*p.T;
+      for (let k=0;k<24;k++){
+        orbitPath(p, day - span*(k+1)/24, day - span*k/24, 3);
+        ctx.strokeStyle = p.c; ctx.globalAlpha = .55*(1-k/24); ctx.lineWidth = 2; ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  // sun: corona, glow and a limb-darkened disc
+  const cor = ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,70);
+  cor.addColorStop(0,"rgba(255,214,140,.45)"); cor.addColorStop(.3,"rgba(255,170,80,.14)"); cor.addColorStop(1,"rgba(255,150,60,0)");
+  ctx.fillStyle = cor; ctx.beginPath(); ctx.arc(W/2,H/2,70,0,Math.PI*2); ctx.fill();
+  const sd = ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,15);
+  sd.addColorStop(0,"#fffbea"); sd.addColorStop(.6,"#ffe39a"); sd.addColorStop(1,"#f0a43c");
+  ctx.fillStyle = sd; ctx.beginPath(); ctx.arc(W/2,H/2,15,0,Math.PI*2); ctx.fill();
+  drawBelt();
+
+  const pts = P.map((p,i) => { const [x,y] = scr(p, day); return {p,i,x,y}; });
+  pts.forEach(o => screen[o.i] = [o.x, o.y, o.p.r]);
+  const earth = pts[2];
+  if ($("lines").checked && !destroyed[2]) pts.forEach(o => { if (o.i===2 || destroyed[o.i]) return;
+    ctx.beginPath(); ctx.moveTo(earth.x,earth.y); ctx.lineTo(o.x,o.y);
+    ctx.strokeStyle = o.i===selected ? "rgba(243,207,130,.7)" : "rgba(111,168,255,.18)"; ctx.setLineDash([3,4]); ctx.stroke(); ctx.setLineDash([]); });
+
+  pts.sort((a,b)=>a.y-b.y).forEach(({p,i,x,y}) => {
+    const d = destroyed[i];
+    if (d){
+      // debris spreading along the orbit, cooling from ember to the planet's color
+      const kp = kepler(p, day), age = (t - d.t0)/1000, f = Math.min(1, age/40) ** .6, R = scaleR(kp.r), base = kp.th;
+      for (const fr of d.frags){
+        const a = base + fr.off + fr.rate*f*Math.PI;
+        const rr = R + fr.dr*(3 + 14*f) + fr.dr*p.r*.6;
+        const [fx,fy] = polar(rr, a);
+        const hot = Math.max(0, 1 - age/(2 + fr.hot*4));
+        ctx.globalAlpha = .45 + .5*hot;
+        ctx.fillStyle = hot > .3 ? "#ffb070" : p.c;
+        ctx.fillRect(fx, fy, fr.s, fr.s);
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      drawPlanet(p, i, x, y, t);
+    }
+    if (i===selected || i===hover){
+      ctx.beginPath(); ctx.arc(x,y,p.r+7,0,Math.PI*2);
+      ctx.strokeStyle = d ? "rgba(255,90,60,.7)" : i===selected ? "#d9a64a" : "rgba(233,228,214,.5)";
+      ctx.setLineDash(d ? [2,3] : []); ctx.lineWidth=1.2; ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = "500 11px 'IBM Plex Mono', monospace"; ctx.fillStyle = d ? "#ff8a70" : "#e9e4d6";
+      ctx.fillText(p.n.toUpperCase() + (d ? " · DEBRIS" : ""), x+p.r+12, y+4);
+    }
+  });
+
+  drawCiv(t, dt);
+
+  // shockwaves
+  for (const w of waves){
+    w.t += dt; if (w.t < 0) continue;
+    const k = w.t / w.max, R = w.R * (1 - Math.pow(1-k, 3));
+    ctx.beginPath(); ctx.ellipse(w.x, w.y, R, R*Math.max(.5,tilt), 0, 0, Math.PI*2);
+    ctx.strokeStyle = w.c; ctx.globalAlpha = Math.max(0, 1-k)*.9; ctx.lineWidth = 2.5*(1-k)+.5; ctx.stroke();
+  }
+  waves = waves.filter(w => w.t < w.max); ctx.globalAlpha = 1;
+
+  // sparks
+  ctx.globalCompositeOperation = "lighter";
+  for (const s of sparks){
+    s.life += dt; s.x += s.vx*dt; s.y += s.vy*dt; s.vx *= Math.pow(.25, dt); s.vy *= Math.pow(.25, dt);
+    const k = 1 - s.life/s.max; if (k <= 0) continue;
+    ctx.globalAlpha = k; ctx.fillStyle = s.c;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.s*(.5+k), 0, Math.PI*2); ctx.fill();
+  }
+  sparks = sparks.filter(s => s.life < s.max);
+  ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+
+  if (flash > .01){ ctx.setTransform(dpr,0,0,dpr,0,0); ctx.fillStyle = `rgba(255,240,210,${flash*.7})`; ctx.fillRect(0,0,W,H); flash *= Math.pow(.004, dt); }
+}
+
+/* ---------- Life vignettes ---------- */
+const rnd = (seed => () => (seed = (seed*16807) % 2147483647) / 2147483647)(42);
+const V = { fish: Array.from({length:7}, () => ({y:rnd(), s:.6+rnd()*.7, v:.4+rnd()*.8, ph:rnd()*6, c:["#ffb14a","#ff6b8a","#ffe066","#7fe0ff"][Math.floor(rnd()*4)]})),
+            birds: Array.from({length:5}, () => ({y:rnd(), v:.3+rnd()*.4, ph:rnd()})),
+            dust: Array.from({length:70}, () => ({x:rnd(), y:rnd(), v:.2+rnd()*.8, s:rnd()*1.6+.3})),
+            bugs: Array.from({length:14}, () => ({x:rnd(), y:rnd(), ph:rnd()*6})),
+            rocks: Array.from({length:26}, () => ({x:rnd(), y:rnd(), r:2+rnd()*9, rot:rnd()*6, vr:(rnd()-.5)*.8, vx:(rnd()-.5)*.08, vy:(rnd()-.5)*.05, sides: 5+Math.floor(rnd()*3)})),
+            craters: Array.from({length:9}, () => ({x:rnd(), y:.62+rnd()*.33, r:6+rnd()*18})),
+            stars: Array.from({length:50}, () => ({x:rnd(), y:rnd()*.6, s:rnd()*1.2+.2})) };
+
+function label(text, x, y, color){ vx.font = "500 10px 'IBM Plex Mono', monospace"; vx.fillStyle = color || "rgba(233,228,214,.85)"; vx.fillText(text, x, y); }
+function lin(y0, y1, stops){ const g = vx.createLinearGradient(0,y0,0,y1); stops.forEach((c,k)=>g.addColorStop(k/(stops.length-1), c)); return g; }
+function starfield(a){ vx.fillStyle = `rgba(233,228,214,${a})`; V.stars.forEach(s => vx.fillRect(s.x*VW, s.y*VH, s.s, s.s)); }
+
+function vignette(ts){
+  const w = VW, h = VH; if (!w) return;
+  vx.clearRect(0,0,w,h);
+  const kind = destroyed[selected] ? "dead" : LIFE[selected].kind;
+  ({ earth, mercury, venus, mars, europa, enceladus, uranus, neptune, dead })[kind](ts, w, h);
+}
+
+function earth(ts, w, h){
+  vx.fillStyle = lin(0, h*.6, ["#16306b","#4f86d9","#a9cdf2"]); vx.fillRect(0,0,w,h);
+  vx.fillStyle = "rgba(255,244,214,.95)"; vx.beginPath(); vx.arc(w*.82, h*.18, 12, 0, 7); vx.fill();
+  vx.fillStyle = "rgba(255,255,255,.75)";
+  for (let k=0;k<3;k++){ const cx = ((ts*.012*(k+1) + k*.37) % 1.3 - .15)*w, cy = h*(.12+k*.09);
+    vx.beginPath(); vx.ellipse(cx, cy, 22, 7, 0, 0, 7); vx.ellipse(cx+14, cy-4, 14, 7, 0, 0, 7); vx.fill(); }
+  vx.strokeStyle = "#13203a"; vx.lineWidth = 1.4;
+  V.birds.forEach(b => { const x = ((ts*.05*b.v + b.ph) % 1.2 - .1)*w, y = h*(.1 + b.y*.25), f = Math.sin(ts*8 + b.ph*9)*3;
+    vx.beginPath(); vx.moveTo(x-5, y-f); vx.lineTo(x, y); vx.lineTo(x+5, y-f); vx.stroke(); });
+  vx.fillStyle = "#2f7a46"; vx.beginPath(); vx.moveTo(0, h*.62);
+  for (let x=0; x<=w; x+=6) vx.lineTo(x, h*.5 + Math.sin(x*.02)*8 + Math.sin(x*.05+1)*4);
+  vx.lineTo(w, h*.62); vx.closePath(); vx.fill();
+  for (let k=0;k<9;k++){ const x = w*(.05 + k*.06), y = h*.5 + Math.sin(x*.02)*8 + Math.sin(x*.05+1)*4;
+    vx.fillStyle = "#5b3a22"; vx.fillRect(x-1, y-6, 2, 6);
+    vx.fillStyle = "#1f5c34"; vx.beginPath(); vx.moveTo(x, y-18 - (k%3)*3); vx.lineTo(x-6, y-5); vx.lineTo(x+6, y-5); vx.fill(); }
+  vx.fillStyle = lin(h*.6, h, ["#2a7fc4","#0d3a73","#06183a"]); vx.fillRect(0, h*.6, w, h*.4);
+  vx.strokeStyle = "rgba(255,255,255,.35)"; vx.lineWidth = 1; vx.beginPath();
+  for (let x=0; x<=w; x+=4) vx.lineTo(x, h*.6 + Math.sin(x*.08 + ts*2)*1.5); vx.stroke();
+  V.fish.forEach(f => { const dir = f.v > .8 ? -1 : 1;
+    let x = ((ts*.06*f.v + f.ph) % 1.2 - .1)*w; if (dir < 0) x = w - x;
+    const y = h*(.68 + f.y*.27) + Math.sin(ts*2 + f.ph)*3, s = 6*f.s;
+    vx.fillStyle = f.c; vx.beginPath(); vx.ellipse(x, y, s, s*.5, 0, 0, 7); vx.fill();
+    vx.beginPath(); vx.moveTo(x - dir*s*.8, y); vx.lineTo(x - dir*s*1.6, y - s*.5); vx.lineTo(x - dir*s*1.6, y + s*.5); vx.fill(); });
+  vx.fillStyle = "rgba(127,224,160,.7)";
+  for (let k=0;k<8;k++){ const x = w*(.08 + k*.12), sway = Math.sin(ts*1.5 + k)*3;
+    vx.fillRect(x + sway*.5, h-14, 2, 14); vx.fillRect(x + 4 + sway, h-10, 2, 10); }
+}
+
+function mercury(ts, w, h){
+  vx.fillStyle = "#040509"; vx.fillRect(0,0,w,h); starfield(.7);
+  const g = vx.createRadialGradient(w*.1, h*.2, 0, w*.1, h*.2, w*.55);
+  g.addColorStop(0, "rgba(255,247,220,1)"); g.addColorStop(.12, "rgba(255,220,150,.8)"); g.addColorStop(1, "rgba(255,200,120,0)");
+  vx.fillStyle = g; vx.fillRect(0,0,w,h);
+  vx.fillStyle = lin(h*.58, h, ["#8d877f","#55514c","#2b2927"]); vx.beginPath(); vx.moveTo(0, h*.62);
+  for (let x=0;x<=w;x+=8) vx.lineTo(x, h*.6 + Math.sin(x*.03)*4); vx.lineTo(w,h); vx.lineTo(0,h); vx.fill();
+  V.craters.forEach(c => { vx.fillStyle = "rgba(0,0,0,.3)"; vx.beginPath(); vx.ellipse(c.x*w, c.y*h, c.r, c.r*.35, 0, 0, 7); vx.fill();
+    vx.strokeStyle = "rgba(255,255,255,.12)"; vx.stroke(); });
+  vx.strokeStyle = "rgba(255,220,170,.18)";
+  for (let k=0;k<5;k++){ vx.beginPath(); for (let x=0;x<=w;x+=5) vx.lineTo(x, h*(.56-k*.03) + Math.sin(x*.07 + ts*4 + k)*1.5); vx.stroke(); }
+  label("427 °C DAYSIDE · NOTHING STIRS", 10, h-10);
+}
+
+function venus(ts, w, h){
+  vx.fillStyle = lin(0, h, ["#f7d48a","#e19a46","#a1501f","#4a1c0c"]); vx.fillRect(0,0,w,h);
+  for (let k=0;k<7;k++){ vx.strokeStyle = `rgba(255,240,200,${.12 + (k%3)*.06})`; vx.lineWidth = 6 + k*2;
+    vx.beginPath(); for (let x=-10;x<=w+10;x+=8) vx.lineTo(x, h*(.12 + k*.12) + Math.sin(x*.025 + ts*.6*(k%2?1:-1) + k)*6); vx.stroke(); }
+  vx.fillStyle = "rgba(255,248,220,.12)"; vx.fillRect(0, h*.3, w, h*.22);
+  V.bugs.forEach(b => { const x = ((b.x + ts*.02) % 1)*w, y = h*(.32 + b.y*.18) + Math.sin(ts + b.ph)*3, a = .5 + .5*Math.sin(ts*3 + b.ph);
+    vx.fillStyle = `rgba(127,224,160,${.4 + a*.5})`; vx.beginPath(); vx.arc(x, y, 1.8, 0, 7); vx.fill(); });
+  label("~50 KM · ~30 °C · CLOUD MICROBES?", 10, h*.3 - 6, "rgba(40,16,6,.85)");
+  label("SURFACE 464 °C", 10, h-10, "rgba(255,210,170,.9)");
+}
+
+function mars(ts, w, h){
+  vx.fillStyle = lin(0, h*.62, ["#3a1f2a","#b8714a","#e3a777"]); vx.fillRect(0,0,w,h);
+  vx.fillStyle = "rgba(220,235,255,.85)"; vx.beginPath(); vx.arc(w*.78, h*.22, 4, 0, 7); vx.fill();
+  vx.fillStyle = "#a4502c"; vx.beginPath(); vx.moveTo(0, h*.55);
+  for (let x=0;x<=w;x+=8) vx.lineTo(x, h*.5 + Math.sin(x*.015+2)*10 + Math.sin(x*.06)*2); vx.lineTo(w, h*.74); vx.lineTo(0, h*.74); vx.fill();
+  vx.fillStyle = "#7a3a20"; for (let k=0;k<10;k++){ vx.beginPath(); vx.ellipse(w*(.06+k*.1), h*(.66 + (k%3)*.02), 4+(k%4)*2, 3, 0, 0, 7); vx.fill(); }
+  vx.fillStyle = lin(h*.74, h, ["#4d2214","#24100a"]); vx.fillRect(0, h*.74, w, h*.26);
+  vx.strokeStyle = "rgba(255,200,170,.25)"; vx.setLineDash([3,3]); vx.beginPath(); vx.moveTo(0, h*.74); vx.lineTo(w, h*.74); vx.stroke(); vx.setLineDash([]);
+  V.bugs.slice(0,9).forEach(b => { const a = .5 + .5*Math.sin(ts*2 + b.ph);
+    vx.fillStyle = `rgba(127,224,160,${.15 + a*.55})`; vx.beginPath(); vx.arc(b.x*w, h*(.8 + b.y*.15), 1.5 + a, 0, 7); vx.fill(); });
+  V.dust.forEach(d => { const x = ((d.x + ts*.05*d.v) % 1)*w, y = d.y*h*.7;
+    vx.fillStyle = "rgba(255,210,170,.35)"; vx.fillRect(x, y, d.s, d.s); });
+  label("SUBSURFACE · MICROBES?", 10, h-10, "rgba(200,240,210,.85)");
+}
+
+function europa(ts, w, h){
+  vx.fillStyle = "#05070f"; vx.fillRect(0,0,w,h); starfield(.6);
+  const jx = w*.85, jy = h*.08, jr = h*.5;
+  vx.save(); vx.beginPath(); vx.arc(jx, jy, jr, 0, 7); vx.clip();
+  const bands = ["#e8cfa6","#b98a5c","#efdcb8","#a87348","#e3c79c","#c49a6c"];
+  bands.forEach((c,k) => { vx.fillStyle = c; vx.fillRect(jx-jr, jy-jr + k*jr*2/6, jr*2, jr*2/6+1); });
+  vx.fillStyle = "#c4553a"; vx.beginPath(); vx.ellipse(jx - jr*.35 + Math.sin(ts*.2)*3, jy + jr*.35, 14, 8, 0, 0, 7); vx.fill(); vx.restore();
+  vx.fillStyle = lin(h*.38, h*.5, ["#f2f6ff","#c8d8ea"]); vx.fillRect(0, h*.38, w, h*.12);
+  vx.strokeStyle = "rgba(160,90,60,.5)"; vx.lineWidth = 1; for (let k=0;k<6;k++){ vx.beginPath(); vx.moveTo(w*k*.18, h*.4); vx.lineTo(w*k*.18+30, h*.47); vx.stroke(); }
+  vx.fillStyle = lin(h*.5, h, ["#1a4f8a","#0b2750","#041027"]); vx.fillRect(0, h*.5, w, h*.5);
+  const vxp = w*.62;
+  vx.fillStyle = "#1b1410"; vx.beginPath(); vx.moveTo(vxp-16, h); vx.lineTo(vxp-4, h-22); vx.lineTo(vxp+4, h-22); vx.lineTo(vxp+16, h); vx.fill();
+  for (let k=0;k<10;k++){ const life = (ts*.4 + k/10) % 1, y = h-22 - life*h*.42, x = vxp + Math.sin(life*9 + k)*6;
+    vx.fillStyle = `rgba(200,240,255,${.7*(1-life)})`; vx.beginPath(); vx.arc(x, y, 1.5 + life*2, 0, 7); vx.fill(); }
+  V.bugs.slice(0,8).forEach(b => { const a = .5 + .5*Math.sin(ts*2.4 + b.ph);
+    vx.fillStyle = `rgba(127,224,160,${.1 + a*.5})`; vx.beginPath(); vx.arc(vxp + (b.x-.5)*60, h - 10 - b.y*26, 1.3, 0, 7); vx.fill(); });
+  label("EUROPA · ICE SHELL", 10, h*.38 - 6);
+  label("OCEAN · VENT LIFE?", 10, h-10, "rgba(200,240,210,.85)");
+}
+
+function enceladus(ts, w, h){
+  vx.fillStyle = "#04060d"; vx.fillRect(0,0,w,h); starfield(.6);
+  const sx = w*.72, sy = h*.25;
+  vx.strokeStyle = "rgba(234,211,154,.55)"; vx.lineWidth = 3; vx.beginPath(); vx.ellipse(sx, sy, 70, 14, -.15, 0, 7); vx.stroke();
+  vx.fillStyle = lin(sy-26, sy+26, ["#f5e3b5","#c9a86a"]); vx.beginPath(); vx.arc(sx, sy, 24, 0, 7); vx.fill();
+  vx.strokeStyle = "rgba(234,211,154,.8)"; vx.lineWidth = 3; vx.beginPath(); vx.ellipse(sx, sy, 70, 14, -.15, Math.PI*.05, Math.PI*.95); vx.stroke();
+  vx.fillStyle = lin(h*.65, h, ["#eef4ff","#b7c8dc"]); vx.beginPath(); vx.moveTo(0, h*.7);
+  for (let x=0;x<=w;x+=8) vx.lineTo(x, h*.68 + Math.sin(x*.02)*3); vx.lineTo(w,h); vx.lineTo(0,h); vx.fill();
+  vx.strokeStyle = "#5e7fa8"; vx.lineWidth = 2;
+  const vents = [.18,.42,.66,.88];
+  vents.forEach(v => { vx.beginPath(); vx.moveTo(w*v-12, h*.74); vx.lineTo(w*v+12, h*.78); vx.stroke(); });
+  vents.forEach((v,j) => { for (let k=0;k<26;k++){ const life = (ts*.35 + k/26 + j*.13) % 1, spread = (Math.sin(k*12.9898)*.5);
+    const x = w*v + spread*life*50, y = h*.75 - life*h*.7;
+    vx.fillStyle = `rgba(220,240,255,${.75*(1-life)})`; vx.fillRect(x, y, 1.6, 1.6); } });
+  label("ENCELADUS · PLUMES FROM A HIDDEN OCEAN", 10, h-10, "rgba(20,40,70,.9)");
+}
+
+function iceWorld(ts, w, h, c1, c2, geysers, text){
+  vx.fillStyle = "#03050b"; vx.fillRect(0,0,w,h); starfield(.7);
+  const px = w*.5, py = h*1.9, pr = h*1.5;
+  const g = vx.createRadialGradient(px - pr*.2, py - pr*.6, pr*.2, px, py, pr);
+  g.addColorStop(0, c1); g.addColorStop(1, c2);
+  vx.fillStyle = g; vx.beginPath(); vx.arc(px, py, pr, 0, 7); vx.fill();
+  vx.save(); vx.beginPath(); vx.arc(px, py, pr, 0, 7); vx.clip();
+  for (let k=0;k<6;k++){ vx.strokeStyle = "rgba(255,255,255,.08)"; vx.lineWidth = 5;
+    vx.beginPath(); vx.arc(px, py, pr - 12 - k*14 + Math.sin(ts*.5 + k)*2, 0, 7); vx.stroke(); }
+  vx.restore();
+  vx.strokeStyle = "rgba(160,220,255,.25)"; vx.lineWidth = 2.4; vx.beginPath(); vx.arc(px, py, pr + 4, Math.PI*1.2, Math.PI*1.8); vx.stroke();
+  if (geysers){
+    const tx = w*.16, ty = h*.3;
+    vx.fillStyle = lin(ty-16, ty+16, ["#f2d7d2","#a88c8c"]); vx.beginPath(); vx.arc(tx, ty, 16, 0, 7); vx.fill();
+    for (let k=0;k<14;k++){ const life = (ts*.5 + k/14) % 1;
+      vx.fillStyle = `rgba(40,30,30,${.8*(1-life)})`; vx.beginPath(); vx.arc(tx + 6 + life*14, ty - 14 - life*26, 1 + life*2, 0, 7); vx.fill(); }
+    label("TRITON", tx - 18, ty + 30);
+  }
+  // wind streaks
+  vx.strokeStyle = "rgba(255,255,255,.18)"; vx.lineWidth = 1;
+  for (let k=0;k<6;k++){ const x = ((ts*(geysers ? .25 : .08) + k/6) % 1.2 - .1)*w, y = h*(.62 + k*.05);
+    vx.beginPath(); vx.moveTo(x, y); vx.lineTo(x+30, y-1); vx.stroke(); }
+  label(text, 10, h-10);
+}
+function uranus(ts, w, h){ iceWorld(ts, w, h, "#d6fbfb", "#4aa7b4", false, "−195 °C · NO KNOWN LIFE"); }
+function neptune(ts, w, h){ iceWorld(ts, w, h, "#a9bfff", "#24398f", true, "−200 °C · 2,000 KM/H WINDS"); }
+
+function dead(ts, w, h){
+  vx.fillStyle = "#06070c"; vx.fillRect(0,0,w,h); starfield(.5);
+  const d = destroyed[selected], age = d ? (performance.now() - d.t0)/1000 : 99, c = P[selected].c;
+  const glow = vx.createRadialGradient(w/2, h/2, 0, w/2, h/2, w*.5);
+  glow.addColorStop(0, `rgba(255,120,60,${Math.max(0,.35 - age*.02)})`); glow.addColorStop(1, "rgba(255,120,60,0)");
+  vx.fillStyle = glow; vx.fillRect(0,0,w,h);
+  V.rocks.forEach(r => { const spreadK = 1 + Math.min(age, 30)*.04;
+    const x = w/2 + ((r.x-.5)*w + r.vx*ts*40)*spreadK % (w*.6), y = h/2 + ((r.y-.5)*h + r.vy*ts*40)*spreadK % (h*.5);
+    const hot = Math.max(0, 1 - age/(3 + r.r*.4));
+    vx.save(); vx.translate(x, y); vx.rotate(r.rot + ts*r.vr);
+    vx.fillStyle = hot > .2 ? `rgb(${255},${120 + 80*(1-hot)|0},${60})` : c; vx.globalAlpha = .85;
+    vx.beginPath(); for (let k=0;k<r.sides;k++){ const a = k/r.sides*Math.PI*2, rr = r.r*(.7 + .3*Math.sin(k*3 + r.rot)); vx.lineTo(Math.cos(a)*rr, Math.sin(a)*rr); }
+    vx.closePath(); vx.fill(); vx.restore(); });
+  vx.globalAlpha = 1;
+  label(`${P[selected].n.toUpperCase()} · DEBRIS FIELD`, 10, h-10, "rgba(255,150,120,.9)");
+}
+
+/* ---------- Moons, belt, satellites ---------- */
+const MOONS = [
+  { n:"Moon",      p:2, per:27.32,  r:1.8, c:"#d8d4cc" },
+  { n:"Phobos",    p:3, per:0.319,  r:1.0, c:"#a08a7a" },
+  { n:"Deimos",    p:3, per:1.263,  r:0.9, c:"#b49c8a" },
+  { n:"Io",        p:4, per:1.769,  r:1.6, c:"#f2d46b" },
+  { n:"Europa",    p:4, per:3.551,  r:1.5, c:"#e8e2d0" },
+  { n:"Ganymede",  p:4, per:7.155,  r:2.0, c:"#b8a990" },
+  { n:"Callisto",  p:4, per:16.69,  r:1.9, c:"#8b7d6b" },
+  { n:"Enceladus", p:5, per:1.370,  r:1.1, c:"#f4f8ff" },
+  { n:"Titan",     p:5, per:15.95,  r:2.1, c:"#e3a94f" },
+  { n:"Titania",   p:6, per:8.706,  r:1.4, c:"#c9c3bc" },
+  { n:"Triton",    p:7, per:-5.877, r:1.5, c:"#e6cfc9" },   // retrograde
+];
+{ const cnt = {}; MOONS.forEach(m => { m.k = cnt[m.p] = (cnt[m.p] ?? -1) + 1; m.a = Math.random()*Math.PI*2; }); }
+const moonR = m => P[m.p].r*(P[m.p].ring ? 2.3 : 1) + 7 + m.k*5;
+function moonPos(m){ const s = screen[m.p]; if (!s) return null; const R = moonR(m); return [s[0] + R*Math.cos(m.a), s[1] + R*Math.sin(m.a)*Math.max(.35, tilt)]; }
+function updateMoons(dt){
+  if (!playing) return;
+  MOONS.forEach(m => { const rev = Math.min(speed*dt/Math.abs(m.per), dt*.9); m.a += Math.sign(m.per)*rev*Math.PI*2; });
+}
+const BELT = Array.from({length: 380}, () => { const a = 2.1 + Math.random()*1.2; return { a, L0: Math.random()*360, T: 365.25*a**1.5, s: Math.random()*1.1+.4 }; });
+const CERES = { a:2.77, T:1681.6, L0:153 };
+function drawBelt(){
+  ctx.fillStyle = "#9a8f80"; ctx.globalAlpha = .38;
+  for (const b of BELT){ const [x,y] = polar(scaleR(b.a), ang(b,day)); ctx.fillRect(x, y, b.s, b.s); }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- Civilization: eras, colonies, traffic, war ---------- */
+const yearNow = () => 2000 + day/365.25;
+const ERAS = [
+  { y:1957, name:"Sputnik", d:"The Soviet Union launches Sputnik 1, the first artificial satellite.", real:1 },
+  { y:1961, name:"First human in orbit", d:"Yuri Gagarin circles Earth once aboard Vostok 1.", real:1 },
+  { y:1969, name:"Moon landing", d:"Apollo 11 lands on the Moon. Twelve people walk on it by 1972.", real:1 },
+  { y:1977, name:"Voyager", d:"Voyager 1 and 2 launch on a grand tour of the outer planets.", real:1 },
+  { y:1998, name:"Space station era", d:"The first ISS module launches. People have lived aboard without a break since 2000.", real:1 },
+  { y:2021, name:"Mars robotics", d:"Perseverance lands in Jezero Crater, and the Ingenuity helicopter makes the first powered flight on another world.", real:1 },
+  { y:2024, name:"Mega-constellations", d:"Thousands of satellites now ring Earth, and Europa Clipper is on its way to Jupiter.", real:1 },
+  { y:2032, name:"Lunar base", d:"A permanent crewed base opens near the Moon's south pole, mining ice for water and rocket fuel." },
+  { y:2045, name:"Mars outpost", d:"The first permanent settlement lands on Mars. Freighters start running between Earth, the Moon and Mars." },
+  { y:2060, name:"Belt rush", d:"Mining stations claim Ceres. Rival powers arm their first patrol ships with coilguns.", weapon:"Coilguns" },
+  { y:2070, name:"Cloud cities", d:"Floating habitats drift in Venus's temperate cloud layer, 50 km above the furnace." },
+  { y:2085, name:"Ocean moons", d:"Research stations drill through Europa's ice and land beside Titan's methane seas." },
+  { y:2110, name:"Fusion drives", d:"Fusion torches cut Earth–Jupiter trips from years to weeks. Warships mount lasers, and Mercury gets solar foundries.", weapon:"Lasers" },
+  { y:2150, name:"Outer reach", d:"Settlements spread to Titania and Triton at the edge of the planets." },
+  { y:2200, name:"Antimatter age", d:"Antimatter missiles make every fleet battle short and blinding.", weapon:"Antimatter missiles" },
+  { y:2300, name:"Planet-crackers", d:"Weapons now exist that can shatter a whole planet. Whether anyone uses them is up to you.", weapon:"Planet-crackers" },
+  { y:2400, name:"Dyson swarm", d:"Solar collectors begin to circle the Sun by the million, catching a growing share of its light." },
+];
+const FAC = [
+  { n:"Terran Union",     c:"#6fa8ff" },
+  { n:"Martian Republic", c:"#ff6a4d" },
+  { n:"Jovian Compact",   c:"#f0b35a" },
+  { n:"Saturnine Accord", c:"#c58bff" },
+  { n:"Outer Reach",      c:"#5fe0d0" },
+];
+const COLONIES = [
+  { id:"earth",     n:"Earth",            y:1957, fac:0, def:12 },
+  { id:"moon",      n:"Luna Base",        y:2032, fac:0, def:4 },
+  { id:"mars",      n:"Mars",             y:2045, fac:1, def:6 },
+  { id:"ceres",     n:"Ceres",            y:2060, fac:1, def:3 },
+  { id:"venus",     n:"Venus Cloud City", y:2070, fac:0, def:3 },
+  { id:"europa",    n:"Europa",           y:2085, fac:2, def:3 },
+  { id:"titan",     n:"Titan",            y:2085, fac:3, def:3 },
+  { id:"callisto",  n:"Callisto",         y:2095, fac:2, def:4 },
+  { id:"ganymede",  n:"Ganymede",         y:2105, fac:2, def:4 },
+  { id:"mercury",   n:"Mercury Foundry",  y:2110, fac:0, def:3 },
+  { id:"enceladus", n:"Enceladus",        y:2120, fac:3, def:2 },
+  { id:"titania",   n:"Titania",          y:2150, fac:4, def:2 },
+  { id:"triton",    n:"Triton",           y:2150, fac:4, def:2 },
+];
+COLONIES.forEach(c => c.fac0 = c.fac);
+const BODY = {};
+P.forEach((p,i) => BODY[p.n.toLowerCase()] = { planet:i });
+MOONS.forEach(m => BODY[m.n.toLowerCase()] = { moon:m, planet:m.p });
+BODY.ceres = { ceres:true };
+const alive = id => { const b = BODY[id]; return b.ceres || !destroyed[b.planet]; };
+function bodyPos(id){
+  const b = BODY[id];
+  if (b.ceres) return polar(scaleR(CERES.a), ang(CERES, day));
+  if (b.moon) return moonPos(b.moon);
+  const s = screen[b.planet]; return s ? [s[0], s[1]] : null;
+}
+const bodySize = id => { const b = BODY[id]; return b.ceres ? 1.5 : b.moon ? b.moon.r : P[b.planet].r; };
+function eraIndex(){ const y = yearNow(); let k = -1; ERAS.forEach((e,i) => { if (y >= e.y) k = i; }); return k; }
+const activeColonies = () => { const y = yearNow(); return COLONIES.filter(c => y >= c.y && alive(c.id)); };
+function weaponKind(){ const y = yearNow(); return y >= 2200 ? "missile" : y >= 2110 ? "laser" : "coil"; }
+const shipSpeed = () => 40 + Math.max(0, eraIndex()-8)*12;
+
+let freighters = [], fleets = [], tracers = [], warLog = [], freightClock = 0, warClock = 0, logDirty = true;
+function logEvent(text){ warLog.unshift({ y: Math.floor(yearNow()), text }); warLog = warLog.slice(0, 30); logDirty = true; }
+function puff(x, y, c, n, v){
+  for (let k=0;k<n;k++){ const a = Math.random()*Math.PI*2, s = Math.random()*(v||60);
+    sparks.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0, max:.3+Math.random()*.6, c: k%3 ? c : "#fff1c4", s:Math.random()*1.4+.4 }); }
+}
+function shoot(x0, y0, x1, y1, c){ const kind = weaponKind(); tracers.push({ x0, y0, x1, y1, c, kind, t:0, max: kind==="missile" ? .6 : kind==="laser" ? .18 : .28 }); }
+
+function simCiv(dt){
+  const y = yearNow();
+  COLONIES.forEach(c => { if (y < c.y) c.fac = c.fac0; });
+  const act = activeColonies();
+
+  // peaceful traffic
+  if (y >= 2045 && act.length >= 2){
+    freightClock += dt * Math.min(3, .45*act.length);
+    while (freightClock > 1 && freighters.length < 40){
+      freightClock -= 1;
+      const a = act[Math.floor(Math.random()*act.length)]; let b = act[Math.floor(Math.random()*act.length)];
+      if (a !== b) freighters.push({ from:a, to:b, p:0, c: FAC[a.fac].c });
+    }
+    freightClock = Math.min(freightClock, 1);
+  }
+  freighters = freighters.filter(f => {
+    if (!alive(f.from.id) || !alive(f.to.id)) return false;
+    const A = bodyPos(f.from.id), B = bodyPos(f.to.id); if (!A || !B) return false;
+    f.p += dt * shipSpeed()*.7 / Math.max(30, Math.hypot(B[0]-A[0], B[1]-A[1]));
+    return f.p < 1;
+  });
+
+  // war
+  const facsAlive = [...new Set(act.map(c => c.fac))];
+  if ($("warOn").checked && y >= 2060 && facsAlive.length >= 2){
+    warClock += dt * (0.7 + eraIndex()*.04);
+    if (warClock > 1 && fleets.length < 12){
+      warClock = 0;
+      const src = act[Math.floor(Math.random()*act.length)];
+      const targets = act.filter(c => c.fac !== src.fac);
+      if (targets.length){
+        const S = bodyPos(src.id) || [W/2, H/2];
+        const dTo = c => { const A = bodyPos(c.id) || S; return Math.hypot(A[0]-S[0], A[1]-S[1]); };
+        targets.sort((p,q) => dTo(p) - dTo(q));
+        const tgt = targets[Math.floor((Math.random()**2) * targets.length)];
+        fleets.push({ fac: src.fac, to: tgt, x: S[0], y: S[1], dir: 0, n: 3 + Math.floor(Math.random()*3) + Math.max(0, eraIndex()-9), state:"move", t:0, fire:0 });
+      }
+    }
+  } else warClock = 0;
+
+  fleets.forEach(f => {
+    if (!alive(f.to.id) || f.to.fac === f.fac){ f.n = 0; return; }
+    const T = bodyPos(f.to.id); if (!T){ f.n = 0; return; }
+    const dx = T[0]-f.x, dy = T[1]-f.y, d = Math.hypot(dx, dy);
+    if (f.state === "move"){
+      f.dir = Math.atan2(dy, dx);
+      const step = shipSpeed()*dt;
+      if (d < 12){ f.state = "siege"; f.t = 0; } else { f.x += dx/d*Math.min(step, d); f.y += dy/d*Math.min(step, d); }
+    } else {
+      f.x = T[0] - Math.cos(f.dir)*12; f.y = T[1] - Math.sin(f.dir)*12; f.t += dt; f.fire += dt;
+      if (f.fire > .12){ f.fire = 0; shoot(f.x + (Math.random()-.5)*8, f.y + (Math.random()-.5)*8, T[0] + (Math.random()-.5)*6, T[1] + (Math.random()-.5)*6, FAC[f.fac].c); }
+      if (f.t > 1.8) resolveSiege(f, T);
+    }
+  });
+  // fleet-vs-fleet skirmishes
+  for (let a=0; a<fleets.length; a++) for (let b=a+1; b<fleets.length; b++){
+    const A = fleets[a], B = fleets[b]; if (A.fac === B.fac || A.n <= 0 || B.n <= 0) continue;
+    if (Math.hypot(A.x-B.x, A.y-B.y) < 36){
+      if (Math.random() < 3*dt){ shoot(A.x, A.y, B.x, B.y, FAC[A.fac].c); if (Math.random() < .45){ B.n--; puff(B.x, B.y, FAC[B.fac].c, 14); } }
+      if (Math.random() < 3*dt){ shoot(B.x, B.y, A.x, A.y, FAC[B.fac].c); if (Math.random() < .45){ A.n--; puff(A.x, A.y, FAC[A.fac].c, 14); } }
+    }
+  }
+  fleets = fleets.filter(f => f.n > 0);
+}
+
+function resolveSiege(f, T){
+  const c = f.to, old = c.fac, y = yearNow();
+  const def = c.def * (1 + (y - c.y)/120);
+  const b = BODY[c.id];
+  if (y >= 2300 && $("crackers").checked && b.planet !== undefined && !b.moon && Math.random() < .3){
+    logEvent(`${FAC[f.fac].n} cracks ${P[b.planet].n} apart`);
+    f.n = 0; detonate(b.planet); return;
+  }
+  if (Math.random() < f.n/(f.n + def)){
+    c.fac = f.fac; puff(T[0], T[1], FAC[f.fac].c, 50, 90);
+    logEvent(`${FAC[f.fac].n} takes ${c.n} from the ${FAC[old].n}`);
+  } else {
+    puff(f.x, f.y, FAC[f.fac].c, 40, 70);
+    logEvent(`${c.n} drives off a ${FAC[f.fac].n} fleet`);
+  }
+  f.n = 0;
+}
+
+function drawCiv(t, dt){
+  const y = yearNow();
+  // moons
+  MOONS.forEach(m => {
+    if (destroyed[m.p]) return;
+    const s = screen[m.p], R = moonR(m);
+    if (m.p === selected){ ctx.beginPath(); ctx.ellipse(s[0], s[1], R, R*Math.max(.35, tilt), 0, 0, Math.PI*2); ctx.strokeStyle = "rgba(143,147,173,.22)"; ctx.lineWidth = .8; ctx.stroke(); }
+    const [x,yy] = moonPos(m); ctx.fillStyle = m.c; ctx.beginPath(); ctx.arc(x, yy, m.r, 0, Math.PI*2); ctx.fill();
+    if (m.p === selected && R > 0){ ctx.font = "400 9px 'IBM Plex Mono', monospace"; ctx.fillStyle = "rgba(233,228,214,.6)"; ctx.fillText(m.n, x+4, yy-3); }
+  });
+  // artificial satellites around Earth since 1957
+  if (y >= 1957 && !destroyed[2]){
+    const s = screen[2], n = Math.min(40, Math.round(1 + (y-1957)*.12 + Math.max(0, y-2019)*1.6));
+    ctx.fillStyle = "rgba(233,228,214,.85)";
+    for (let k=0;k<n;k++){ const a = t/1000*(1.4 + (k%4)*.35) + k*2.399, R = P[2].r + 2.5 + (k%3)*1.2;
+      ctx.fillRect(s[0] + R*Math.cos(a), s[1] + R*Math.sin(a)*Math.max(.35, tilt), 1, 1); }
+  }
+  // Dyson swarm
+  if (y >= 2400){
+    const n = Math.min(120, Math.round(6 + (y-2400)*1.2));
+    ctx.fillStyle = "#f3cf82";
+    for (let k=0;k<n;k++){ const a = t/1000*(.5 + (k%5)*.08) + k*2.399, R = 20 + (k%7)*2.2;
+      ctx.globalAlpha = .55 + .4*Math.sin(t/300 + k); ctx.fillRect(W/2 + R*Math.cos(a+spin), H/2 + R*Math.sin(a+spin)*tilt, 1.6, 1.6); }
+    ctx.globalAlpha = 1;
+  }
+  // colonies
+  activeColonies().forEach(c => {
+    const pos = bodyPos(c.id); if (!pos) return;
+    const r = bodySize(c.id) + 3, col = FAC[c.fac].c;
+    if (c.id !== "earth" || y >= 2032){
+      ctx.beginPath(); ctx.arc(pos[0], pos[1], r, 0, Math.PI*2); ctx.strokeStyle = col; ctx.globalAlpha = .75; ctx.lineWidth = 1; ctx.stroke();
+    }
+    const lights = Math.min(6, 1 + Math.floor((y - c.y)/20));
+    for (let k=0;k<lights;k++){ const a = k*1.7 + t/2000;
+      ctx.globalAlpha = .5 + .5*Math.sin(t/250 + k*2); ctx.fillStyle = "#fff1c4"; ctx.fillRect(pos[0] + Math.cos(a)*(r+1.5), pos[1] + Math.sin(a)*(r+1.5), 1.2, 1.2); }
+    ctx.globalAlpha = 1;
+    if (c.id === "ceres"){ ctx.fillStyle = "#b9ad9c"; ctx.beginPath(); ctx.arc(pos[0], pos[1], 1.6, 0, Math.PI*2); ctx.fill(); }
+  });
+  // freighters
+  freighters.forEach(f => {
+    const A = bodyPos(f.from.id), B = bodyPos(f.to.id); if (!A || !B) return;
+    const e = f.p < .5 ? 2*f.p*f.p : 1 - Math.pow(-2*f.p+2, 2)/2;
+    const x = A[0] + (B[0]-A[0])*e, yy = A[1] + (B[1]-A[1])*e;
+    ctx.strokeStyle = f.c; ctx.globalAlpha = .18; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(A[0] + (B[0]-A[0])*Math.max(0, e-.08), A[1] + (B[1]-A[1])*Math.max(0, e-.08)); ctx.lineTo(x, yy); ctx.stroke();
+    ctx.globalAlpha = .9; ctx.fillStyle = "#e9e4d6"; ctx.fillRect(x-.7, yy-.7, 1.4, 1.4);
+  });
+  ctx.globalAlpha = 1;
+  // warships
+  fleets.forEach(f => {
+    const col = FAC[f.fac].c, ca = Math.cos(f.dir), sa = Math.sin(f.dir);
+    for (let k=0;k<f.n;k++){
+      const row = Math.ceil(k/2), side = k===0 ? 0 : (k%2 ? 1 : -1);
+      const ox = f.x - ca*row*6 - sa*side*row*5, oy = f.y - sa*row*6 + ca*side*row*5;
+      ctx.fillStyle = col; ctx.globalAlpha = .35; ctx.beginPath(); ctx.arc(ox - ca*4, oy - sa*4, 1.8 + Math.random(), 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 1; ctx.beginPath();
+      ctx.moveTo(ox + ca*4, oy + sa*4); ctx.lineTo(ox - ca*3 - sa*2.4, oy - sa*3 + ca*2.4); ctx.lineTo(ox - ca*3 + sa*2.4, oy - sa*3 - ca*2.4); ctx.closePath(); ctx.fill();
+    }
+  });
+  // weapon fire
+  tracers.forEach(r => {
+    r.t += dt; const k = Math.min(1, r.t/r.max);
+    if (r.kind === "laser"){ ctx.strokeStyle = r.c; ctx.globalAlpha = 1-k; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(r.x0, r.y0); ctx.lineTo(r.x1, r.y1); ctx.stroke(); }
+    else {
+      const x = r.x0 + (r.x1-r.x0)*k, yy = r.y0 + (r.y1-r.y0)*k - (r.kind==="missile" ? Math.sin(k*Math.PI)*12 : 0);
+      ctx.fillStyle = r.kind==="missile" ? "#fff1c4" : r.c; ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(x, yy, r.kind==="missile" ? 1.8 : 1.1, 0, Math.PI*2); ctx.fill();
+      if (k >= 1 && !r.hit){ r.hit = true; puff(r.x1, r.y1, r.c, r.kind==="missile" ? 22 : 5, r.kind==="missile" ? 70 : 25); }
+    }
+  });
+  tracers = tracers.filter(r => r.t < r.max + .01);
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- Tech + war panels ---------- */
+const timeline = $("timeline");
+ERAS.forEach(e => { const li = document.createElement("li");
+  li.innerHTML = `<span class="yr">${e.y}</span><span class="tick"></span><span>${e.name}${e.real ? "" : '<span class="tag">projected</span>'}</span>`;
+  timeline.appendChild(li); });
+let lastEra = null, lastFacKey = "";
+function updatePanels(){
+  const y = yearNow(), k = eraIndex(), e = ERAS[k], nx = ERAS[k+1];
+  $("eraChip").textContent = `${e ? e.name : "Before spaceflight"} · ${Math.floor(y)}`;
+  $("techLabel").textContent = `Technology · ${Math.floor(y)}${e && !e.real ? " · projected" : ""}`;
+  if (lastEra !== k){
+    lastEra = k;
+    $("eraName").textContent = e ? e.name : "Before spaceflight";
+    $("eraDesc").textContent = e ? e.d : "No human-made object has reached orbit yet. Press play or fast-forward to watch the space age begin.";
+    [...timeline.children].forEach((li,i) => { li.classList.toggle("done", i <= k); li.classList.toggle("now", i === k); });
+    const cur = timeline.children[Math.max(0,k)]; if (cur) timeline.scrollTop = Math.max(0, cur.offsetTop - timeline.offsetTop - 60);
+  }
+  if (nx){
+    const from = e ? e.y : 1950;
+    $("nextText").textContent = `Next: ${nx.name} in ${Math.max(0, nx.y - y).toFixed(1)} years (${nx.y})`;
+    $("nextFill").style.width = Math.min(100, Math.max(0, (y-from)/(nx.y-from)*100)) + "%";
+  } else { $("nextText").textContent = "Every milestone reached. The swarm keeps growing."; $("nextFill").style.width = "100%"; }
+  $("jumpNext").disabled = !nx;
+
+  const wk = y < 2060 ? null : ERAS.filter(x => x.weapon && y >= x.y).pop().weapon;
+  $("weapon").textContent = wk ? `Weapons: ${wk}` : "Weapons: none yet (armed ships arrive in 2060)";
+  const act = activeColonies(), counts = FAC.map((_,i) => act.filter(c => c.fac === i).length);
+  const key = counts.join(",");
+  if (key !== lastFacKey){ lastFacKey = key;
+    $("factions").innerHTML = FAC.map((f,i) => `<span class="fac${counts[i] ? "" : " out"}"><i style="background:${f.c}"></i>${f.n} · ${counts[i]}</span>`).join(""); }
+  const on = $("warOn").checked;
+  $("warNote").textContent = !on ? "Factions and wars are fiction set in the projected future. Turn the war on, then fast-forward to watch fleets fight over colonies."
+    : y < 2060 ? "Nobody has warships yet. Fast-forward to 2060 for the first armed patrols."
+    : new Set(act.map(c => c.fac)).size < 2 ? "Only one power is left. The war is over." : `${fleets.length} fleet${fleets.length===1?"":"s"} in flight.`;
+  if (logDirty){ logDirty = false;
+    $("log").innerHTML = warLog.map(l => `<li><span>${l.y}</span><span>${l.text}</span></li>`).join(""); }
+}
+$("jumpNext").addEventListener("click", () => { const nx = ERAS[eraIndex()+1]; if (nx){ day = (Date.UTC(nx.y,0,1,12) - J2000)/DAY + .5; tick(); } });
+function setSpeed(s){ speed = s; [...$("speed").children].forEach(x => x.setAttribute("aria-pressed", +x.dataset.s === s)); }
+$("fastFwd").addEventListener("click", () => { setSpeed(3652.5); setPlay(true); });
+$("warOn").addEventListener("change", e => { if (!e.target.checked){ fleets = []; tracers = []; } });
+
+/* ---------- Console ---------- */
+const fmtDate = d => new Date(J2000 + d*DAY).toISOString().slice(0,10);
+const longDate = d => new Date(J2000 + d*DAY).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"long",year:"numeric",timeZone:"UTC"});
+function dist(i,j){ const [a,b]=helio(P[i],day),[c,d]=helio(P[j],day); return Math.hypot(a-c,b-d); }
+function fmtLight(au){ const m = au*LIGHT_MIN_PER_AU; return m < 60 ? m.toFixed(1)+" min" : (m/60).toFixed(2)+" h"; }
+
+const list = $("list");
+P.forEach((p,i) => {
+  const b = document.createElement("button");
+  b.className = "planet"; b.setAttribute("role","option"); b.dataset.i = i;
+  b.innerHTML = `<span class="dot" style="background:${p.c};box-shadow:0 0 8px ${p.c}"></span><span class="name">${p.n}</span><span class="val"></span>`;
+  b.onclick = () => select(i);
+  list.appendChild(b);
+});
+
+let armed = null, armTimer = 0;
+function disarm(){ armed = null; clearTimeout(armTimer); }
+function select(i){ selected = i; disarm(); refresh(); }
+
+function refresh(){
+  const i = selected, p = P[i], L = LIFE[i], gone = !!destroyed[i];
+  [...list.children].forEach((b,k) => { b.setAttribute("aria-selected", k===i); b.classList.toggle("gone", !!destroyed[k]); });
+  $("dName").textContent = gone ? `${p.n} (debris)` : p.n;
+  $("ringArc").setAttribute("stroke", gone ? "#ff5a3c" : p.c);
+  $("dSub").textContent = `Heliocentric longitude · one orbit = ${p.T < 1000 ? p.T.toFixed(1)+" days" : (p.T/365.256).toFixed(2)+" years"}`;
+  const boom = $("boom");
+  boom.classList.toggle("restore", gone); boom.classList.toggle("armed", armed === i);
+  boom.textContent = gone ? `Reassemble ${p.n}` : armed === i ? `Confirm: end ~8.7 million species` : `Detonate ${p.n}`;
+
+  $("factsLabel").textContent = `${p.n} facts`;
+  $("factGrid").innerHTML = FACTS[i].stats.map(([k,v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+  $("factList").innerHTML = FACTS[i].list.map(f => `<li>${f}</li>`).join("");
+  $("lifeLabel").textContent = gone ? `Life on ${p.n}: gone` : `Life on ${p.n}`;
+  const pill = $("lifePill");
+  if (gone){ pill.className = "pill dead"; pill.textContent = "Destroyed"; }
+  else { pill.className = "pill " + L.pill[0]; pill.textContent = L.pill[1]; }
+  $("lifeCount").textContent = gone ? (L.species ? "0 of ~8.7 million left" : "Nothing left to find") : L.count;
+  $("lifeText").textContent = gone
+    ? (i===2 ? "Earth is now a ring of cooling rock. Every known living thing in the universe was on it." : `${p.n} is now a spreading ring of rubble along its old orbit. ${L.species ? "" : "If anything was living there, we will never know."}`)
+    : L.text;
+  $("bars").innerHTML = BAR_NAMES.map((n,k) => `<div class="bar"><span>${n}</span><div class="track"><div class="fill" style="width:${gone ? 0 : L.bars[k]}%"></div></div></div>`).join("");
+  $("barsNote").textContent = gone ? "Habitability: none" : `Best local habitat: ${L.where}`;
+
+  const any = destroyed.some(Boolean);
+  $("restoreAll").hidden = !any;
+  const n = destroyed.filter(Boolean).length;
+  $("tally").hidden = !any;
+  $("tally").textContent = `${n} planet${n>1?"s":""} destroyed · ${lost.toLocaleString("en-US")} known species lost`;
+  tick();
+}
+
+function tick(){
+  $("dateBig").textContent = longDate(day);
+  if (document.activeElement !== $("date")) $("date").value = fmtDate(day);
+  const earthGone = !!destroyed[2];
+  [...list.children].forEach((b,i) => b.querySelector(".val").textContent =
+    destroyed[i] ? "debris" : i===2 ? "home" : earthGone ? "—" : dist(2,i).toFixed(2)+" AU");
+  const p = P[selected], de = dist(2,selected), noEarth = selected===2 || earthGone;
+  const prog = ((((360*day/p.T + p.L0) % 360) + 360) % 360) / 360, C = 2*Math.PI*30;
+  $("ringArc").setAttribute("stroke-dasharray", `${C*prog} ${C}`);
+  $("ringText").textContent = Math.round(prog*360) + "°";
+  $("sSun").textContent = p.a.toFixed(3) + " AU";
+  $("sEarth").textContent = noEarth ? "—" : de.toFixed(3) + " AU";
+  $("sLight").textContent = fmtLight(p.a);
+  $("sSignal").textContent = noEarth ? "—" : fmtLight(de);
+  updatePanels();
+}
+
+$("boom").addEventListener("click", () => {
+  const i = selected;
+  if (destroyed[i]) { restore(i); return; }
+  if (i === 2 && armed !== 2){ armed = 2; clearTimeout(armTimer); armTimer = setTimeout(() => { disarm(); refresh(); }, 3500); refresh(); return; }
+  disarm(); detonate(i);
+});
+$("restoreAll").addEventListener("click", () => { destroyed.forEach((d,i) => { if (d) destroyed[i] = null; }); lost = 0; refresh(); });
+
+$("speed").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  speed = +b.dataset.s; [...$("speed").children].forEach(x=>x.setAttribute("aria-pressed", x===b));
+});
+const icons = { pause:'<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>', play:'<path d="M7 4l13 8-13 8z"/>' };
+function setPlay(v){ playing = v; $("playIcon").innerHTML = v ? icons.pause : icons.play; $("play").setAttribute("aria-label", v ? "Pause" : "Play"); }
+setPlay(playing);
+$("play").onclick = () => setPlay(!playing);
+$("today").onclick = () => { day = (Date.now()-J2000)/DAY; tick(); };
+$("date").addEventListener("change", e => { const t = Date.parse(e.target.value+"T12:00:00Z"); if (!isNaN(t)) { day = (t-J2000)/DAY; tick(); } });
+$("trueScale").addEventListener("change", e => $("legend").textContent = (e.target.checked ? "True-scale distances (AU)" : "Distances compressed (√AU)") + " · sizes not to scale · drag to rotate · click a planet · double-click to detonate");
+
+function hit(x,y){ let best=-1, bd=1e9; screen.forEach((s,i)=>{ if(!s) return; const d=Math.hypot(s[0]-x,s[1]-y); if (d < Math.max(14,s[2]+8) && d<bd){bd=d;best=i;} }); return best; }
+cv.addEventListener("pointerdown", e => { drag = {x:e.offsetX, y:e.offsetY, spin, tilt, moved:false}; cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing"; });
+cv.addEventListener("pointermove", e => {
+  if (drag){ const dx=e.offsetX-drag.x, dy=e.offsetY-drag.y; if (Math.abs(dx)+Math.abs(dy)>4) drag.moved=true;
+    spin = drag.spin + dx*0.006; tilt = Math.max(.15, Math.min(1, drag.tilt - dy*0.003)); }
+  else { hover = hit(e.offsetX,e.offsetY); cv.style.cursor = hover>=0 ? "pointer" : "grab"; }
+});
+cv.addEventListener("pointerup", e => { if (drag && !drag.moved){ const h = hit(e.offsetX,e.offsetY); if (h>=0) select(h); } drag = null; cv.style.cursor = "grab"; });
+cv.addEventListener("dblclick", e => { const h = hit(e.offsetX,e.offsetY); if (h<0) return; select(h);
+  if (h === 2) { $("boom").click(); $("boom").focus(); } else detonate(h); });
+
+let lastUI = 0;
+function loop(t){
+  const dt = Math.min(.1,(t-prevT)/1000); prevT = t;
+  if (playing) day += speed*dt;
+  day = Math.min(day, (Date.UTC(2600,11,31) - J2000)/DAY);
+  updateMoons(dt);
+  draw(t, dt);
+  simCiv(dt);
+  vignette(reduced ? 0 : t/1000);
+  if (t-lastUI > 120){ tick(); lastUI = t; }
+  requestAnimationFrame(loop);
+}
+resize(); refresh(); requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
